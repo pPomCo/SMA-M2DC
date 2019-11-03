@@ -142,8 +142,8 @@ CHOOSER
 100
 map-name
 map-name
-"capitole-esquirol" "centre_rive-droite"
-0
+"capitole-esquirol" "rte-de-narbonne"
+1
 
 BUTTON
 10
@@ -186,7 +186,7 @@ SWITCH
 138
 fill-buildings
 fill-buildings
-1
+0
 1
 -1000
 
