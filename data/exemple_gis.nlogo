@@ -1,13 +1,25 @@
 extensions [ gis ]
 
 breed [ants ant]
+breed [shops shop]
 
 globals [
-  building-dataset
+  parcelles-dataset
+  batiments-dataset
+  sirene-dataset
+  last-patch
 ]
 
 patches-own [
   numero
+]
+
+ants-own [
+  closest-shop
+]
+
+shops-own [
+  label-text
 ]
 
 
@@ -17,10 +29,7 @@ to setup
 
   init-patches
 
-  ; Load map
-  gis:load-coordinate-system (word "maps/" map-name "/parcelles.prj")
-  set building-dataset gis:load-dataset (word "maps/" map-name "/parcelles.shp")
-  display-buildings
+  init-gis
 
   print (word "world size: " (max-pxcor - min-pxcor) "x" (max-pycor - min-pycor))
 
@@ -29,6 +38,8 @@ to setup
     set shape "bug"
     set color black
     set size 1
+    set closest-shop nobody
+    rt random 360
   ]
 
   reset-ticks
@@ -39,43 +50,86 @@ to init-patches
   ask patches [
     set pcolor white
     set plabel-color black
-    set plabel "start"
     set numero "0"
   ]
+  set last-patch patch 0 0
 end
 
-to display-buildings
+to init-gis
+
+  ; Load maps
+  gis:load-coordinate-system (word "maps/" map-name "/parcelles.prj")
+  set parcelles-dataset gis:load-dataset (word "maps/" map-name "/parcelles.shp")
+
+  gis:load-coordinate-system (word "maps/" map-name "/batiments.prj")
+  set batiments-dataset gis:load-dataset (word "maps/" map-name "/batiments.shp")
+
+  gis:load-coordinate-system (word "maps/" map-name "/sirene.prj")
+  set sirene-dataset gis:load-dataset (word "maps/" map-name "/sirene.shp")
+
 
   ; Sample rows
-  foreach n-of 5 gis:feature-list-of building-dataset [ vector-feature ->
+  foreach n-of 2 gis:feature-list-of parcelles-dataset [ vector-feature ->
+    print vector-feature
+  ]
+  foreach n-of 2 gis:feature-list-of batiments-dataset [ vector-feature ->
+    print vector-feature
+  ]
+  foreach n-of 2 gis:feature-list-of sirene-dataset [ vector-feature ->
     print vector-feature
   ]
 
-  ; Fill shapes with red (numero=0) or blue (else)
-  if fill-buildings [
-    foreach gis:feature-list-of building-dataset [ vector-feature ->
-      ifelse gis:property-value vector-feature "NUMERO" = "0"
-      [gis:set-drawing-color red]
-      [gis:set-drawing-color blue]
-      gis:fill vector-feature 0
-    ]
+  ; Fill shapes
+  if fill-shapes [
+    gis:set-drawing-color brown + 2
+    gis:fill parcelles-dataset 0
+    ;gis:set-drawing-color black
+    ;gis:fill batiments-dataset 0
   ]
 
   ; Draw shape boundaries
   gis:set-drawing-color black
-  gis:draw building-dataset 0
+  gis:draw parcelles-dataset 0
+  ;gis:draw batiments-dataset 0
+
+  ; Shops
+  foreach gis:feature-list-of sirene-dataset [ vector-feature ->
+    if gis:property-value vector-feature "LIBELLEVOI" = "DE NARBONNE" or not filter-shops [
+      ifelse shops-as-turtles [
+        let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
+        create-shops 1 [
+          set xcor item 0 location
+          set ycor item 1 location
+          set size 0.5
+          set shape "house"
+          set color gray
+          set label-text gis:property-value vector-feature "DIVISIONUN"
+          set label-color black
+        ]
+      ]
+      [
+        gis:set-drawing-color black
+        gis:fill vector-feature 3.0
+      ]
+
+    ]
+  ]
 
   ; Adapt sizes
-  gis:set-world-envelope (gis:envelope-of building-dataset)
+  gis:set-world-envelope (gis:envelope-union-of
+    (gis:envelope-of parcelles-dataset)
+    ;(gis:envelope-of batiments-dataset)
+    (gis:envelope-of sirene-dataset)
+  )
 
   ; Set patch "numero" from gis, or 0 if NaN + update plabel
-  gis:apply-coverage building-dataset "NUMERO" numero
-  ask patches [
-    set numero (word numero)
-    if numero = "NaN" [ set numero "0" ]
-    set numero read-from-string numero
-    set plabel numero
-  ]
+  ;gis:apply-coverage parcelles-dataset "NUMERO" numero
+  ;ask patches [
+  ;  set numero (word numero)
+  ;  if numero = "NaN" [ set numero "0" ]
+  ;  set numero read-from-string numero
+  ;  set plabel numero
+  ;]
 
 
 
@@ -90,15 +144,32 @@ end
 
 
 to update-gis
-  foreach gis:feature-list-of building-dataset [ vector-feature ->
-    if gis:intersects? ants vector-feature [
-      ifelse gis:property-value vector-feature "NUMERO" = "0"
-      [gis:set-drawing-color orange]
-      [gis:set-drawing-color green]
-      gis:fill vector-feature 0
-      gis:set-drawing-color black
-      gis:draw vector-feature 0
+  if color-map [
+    foreach gis:feature-list-of parcelles-dataset [ vector-feature ->
+      if gis:intersects? ants vector-feature [
+        gis:set-drawing-color green - 2
+        gis:fill vector-feature 0
+        gis:set-drawing-color black
+        gis:draw vector-feature 0
+      ]
     ]
+  ]
+  ; Color shops as vector-feature
+  if not shops-as-turtles [
+    let p patches with [count ants-here > 0]
+    foreach gis:feature-list-of sirene-dataset [ vector-feature ->
+      if gis:property-value vector-feature "LIBELLEVOI" = "DE NARBONNE" or not filter-shops [
+        if gis:intersects? last-patch vector-feature [
+          gis:set-drawing-color black
+          gis:fill vector-feature 3.0
+        ]
+        if gis:intersects? p vector-feature [
+          gis:set-drawing-color red
+          gis:fill vector-feature 3.0
+        ]
+      ]
+    ]
+    set last-patch p
   ]
 end
 
@@ -106,12 +177,25 @@ end
 to live
   if random-float 1 > 0.2 [ rt random 10]
   fd 0.2
+
+  ; Color closest shop-as-turtle
+  if closest-shop != nobody [
+    ask closest-shop [
+      set label ""
+      set color gray
+  ]]
+  set closest-shop min-one-of shops in-radius 1 [distance myself]
+  if closest-shop != nobody [
+    ask closest-shop [
+      set color red
+      set label label-text
+  ]]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 17
-638
+838
 446
 -1
 -1
@@ -125,8 +209,8 @@ GRAPHICS-WINDOW
 0
 0
 1
--10
-10
+-15
+15
 -10
 10
 1
@@ -142,8 +226,8 @@ CHOOSER
 100
 map-name
 map-name
-"capitole-esquirol" "rte-de-narbonne"
-1
+"rte-de-narbonne"
+0
 
 BUTTON
 10
@@ -181,11 +265,55 @@ NIL
 
 SWITCH
 10
-105
+250
 151
+283
+fill-shapes
+fill-shapes
+1
+1
+-1000
+
+MONITOR
+10
+355
+102
+400
+NIL
+count shops
+17
+1
+11
+
+SWITCH
+10
+285
+150
+318
+color-map
+color-map
+1
+1
+-1000
+
+SWITCH
+10
+140
+185
+173
+filter-shops
+filter-shops
+0
+1
+-1000
+
+SWITCH
+10
+105
+185
 138
-fill-buildings
-fill-buildings
+shops-as-turtles
+shops-as-turtles
 0
 1
 -1000
