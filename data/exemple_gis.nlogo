@@ -34,7 +34,7 @@ to setup
   print (word "world size: " (max-pxcor - min-pxcor) "x" (max-pycor - min-pycor))
 
   ; A painting ant
-  create-ants 1 [
+  create-ants 10 [
     set shape "bug"
     set color black
     set size 1
@@ -58,21 +58,18 @@ end
 to init-gis
 
   ; Load maps
-  gis:load-coordinate-system (word "maps/" map-name "/parcelles.prj")
-  set parcelles-dataset gis:load-dataset (word "maps/" map-name "/parcelles.shp")
+  gis:load-coordinate-system (word "maps/" map-name "/parcelles_merged.prj")
+  set parcelles-dataset gis:load-dataset (word "maps/" map-name "/parcelles_merged.shp")
 
-  gis:load-coordinate-system (word "maps/" map-name "/batiments.prj")
-  set batiments-dataset gis:load-dataset (word "maps/" map-name "/batiments.shp")
+  ;gis:load-coordinate-system (word "maps/" map-name "/batiments.prj")
+  ;set batiments-dataset gis:load-dataset (word "maps/" map-name "/batiments.shp")
 
   gis:load-coordinate-system (word "maps/" map-name "/sirene.prj")
   set sirene-dataset gis:load-dataset (word "maps/" map-name "/sirene.shp")
 
 
   ; Sample rows
-  foreach n-of 2 gis:feature-list-of parcelles-dataset [ vector-feature ->
-    print vector-feature
-  ]
-  foreach n-of 2 gis:feature-list-of batiments-dataset [ vector-feature ->
+  foreach n-of 1 gis:feature-list-of parcelles-dataset [ vector-feature ->
     print vector-feature
   ]
   foreach n-of 2 gis:feature-list-of sirene-dataset [ vector-feature ->
