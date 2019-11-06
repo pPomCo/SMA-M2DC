@@ -64,8 +64,8 @@ to init-gis
   ;gis:load-coordinate-system (word "maps/" map-name "/batiments.prj")
   ;set batiments-dataset gis:load-dataset (word "maps/" map-name "/batiments.shp")
 
-  gis:load-coordinate-system (word "maps/" map-name "/sirene.prj")
-  set sirene-dataset gis:load-dataset (word "maps/" map-name "/sirene.shp")
+  gis:load-coordinate-system (word "maps/" map-name "/sirene_small.prj")
+  set sirene-dataset gis:load-dataset (word "maps/" map-name "/sirene_small.shp")
 
 
   ; Sample rows
@@ -99,8 +99,9 @@ to init-gis
           set ycor item 1 location
           set size 0.5
           set shape "house"
-          set color gray
-          set label-text gis:property-value vector-feature "DIVISIONUN"
+          ;set label-text gis:property-value vector-feature "DIVISIONUN"
+          set label-text gis:property-value vector-feature "SECTIONUNI"
+          set color activity-color-of label-text
           set label-color black
         ]
       ]
@@ -110,6 +111,11 @@ to init-gis
       ]
 
     ]
+  ]
+
+  ; Print all gray shops (activity not recognized)
+  ask shops with [color = gray] [
+    print (word "gray shop: " label-text)
   ]
 
   ; Adapt sizes
@@ -178,15 +184,37 @@ to live
   ; Color closest shop-as-turtle
   if closest-shop != nobody [
     ask closest-shop [
+      set size 0.5
       set label ""
-      set color gray
   ]]
   set closest-shop min-one-of shops in-radius 1 [distance myself]
   if closest-shop != nobody [
     ask closest-shop [
-      set color red
+      set size 1
       set label label-text
   ]]
+end
+
+
+to-report activity-color-of [sectionuni]
+  if sectionuni = "Activites de services administratifs et de soutien" [report yellow]
+  if sectionuni = "Activites financieres et d'assurance" [report yellow]
+  if sectionuni = "Activites immobilieres" [report blue]
+  if sectionuni = "Activites specialisees, scientifiques et techniques" [report pink]
+  if sectionuni = "Administration publique" [report black]
+  if sectionuni = "Agriculture, sylviculture et peche" [report green]
+  if sectionuni = "Arts, spectacles et activites recreatives" [report red]
+  if sectionuni = "Autres activites de services" [report orange]
+  if sectionuni = "Commerce ; reparation d'automobiles et de motocycles" [report magenta]
+  if sectionuni = "Construction" [report cyan]
+  if sectionuni = "Enseignement" [report violet]
+  if sectionuni = "Hebergement et restauration" [report lime]
+  if sectionuni = "Industrie manufacturiere" [report brown]
+  if sectionuni = "Information et communication" [report sky]
+  if sectionuni = "Production et distribution d'electricite, de gaz, de vapeur et d'air conditionne" [report black]
+  if sectionuni = "Sante humaine et action sociale" [report turquoise]
+  if sectionuni = "Transports et entreposage" [report blue + 2]
+  report gray
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
