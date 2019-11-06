@@ -8,6 +8,8 @@ globals [
   batiments-dataset
   sirene-dataset
   last-patch
+  the-wells
+  base-money
 ]
 
 patches-own [
@@ -15,12 +17,23 @@ patches-own [
 ]
 
 ants-own [
+  need
+  destination
+  money
   closest-shop
 ]
 
 shops-own [
+  money
+  staff
+  market
   label-text
 ]
+
+
+;; =================================
+;; Functions relative to THE WORLD
+;; =================================
 
 
 to setup
@@ -28,23 +41,35 @@ to setup
   print "Starting..."
 
   init-patches
-
+  init-wells
   init-gis
+  init-ants
+  init-shops
+  set base-money 1
 
   print (word "world size: " (max-pxcor - min-pxcor) "x" (max-pycor - min-pycor))
-
-  ; A painting ant
-  create-ants 10 [
-    set shape "bug"
-    set color black
-    set size 1
-    set closest-shop nobody
-    rt random 360
-  ]
-
   reset-ticks
 end
 
+to go
+  ask ants [
+    move-to-destination
+    try-to-buy
+  ]
+  update-gis
+  tick
+end
+
+
+;; =================================
+;; Functions relative to PATCHES
+;; =================================
+
+
+to init-wells
+  set the-wells (patch-set patch 9 -9 patch -7 7 patch 14 7)
+  ask the-wells [ set pcolor blue ]
+end
 
 to init-patches
   ask patches [
@@ -55,8 +80,86 @@ to init-patches
   set last-patch patch 0 0
 end
 
-to init-gis
 
+;; =================================
+;; Functions relative to CUSTOMERS
+;; =================================
+
+
+to init-ants
+    create-ants population [
+    set shape "person"
+    set color red
+    set size 0.5
+    set need random 3  ;; TODO : un truc mieux que random 3
+    set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
+    move-to one-of the-wells
+    set destination one-of the-wells
+    set closest-shop nobody
+  ]
+end
+
+to try-to-buy
+  ask ants [
+    if money > 0 [
+      ask patch-here [
+        if is-agent? (one-of shops-here) [
+        ;  ask one-of shops-here with [market = (need of myself)] [set money (money + 1)] ;; TODO : A REVOIR
+        ]
+      ]
+      set money (money - 1)
+    ]
+  ]
+end
+
+to move-to-destination
+  face destination
+  fd random-float 1
+  if distance destination < 1 [
+    move-to one-of the-wells
+    set destination one-of the-wells
+    set money base-money
+  ]
+end
+
+to live
+  if random-float 1 > 0.2 [rt random 10]
+  fd 0.2
+
+  ; Color closest shop-as-turtle
+  if closest-shop != nobody [
+    ask closest-shop [
+      set size 0.5
+      set label ""
+  ]]
+  set closest-shop min-one-of shops in-radius 1 [distance myself]
+  if closest-shop != nobody [
+    ask closest-shop [
+      set size 1
+      set label label-text
+  ]]
+end
+
+
+;; =================================
+;; Functions relative to SHOPS
+;; =================================
+
+
+to init-shops
+  ask shops[
+    set money 100
+    set market random 3 ;; TODO : un truc mieux que random 3
+  ]
+end
+
+
+;; =================================
+;; Functions relative to GIS
+;; =================================
+
+
+to init-gis
   ; Load maps
   gis:load-coordinate-system (word "maps/" map-name "/parcelles_merged.prj")
   set parcelles-dataset gis:load-dataset (word "maps/" map-name "/parcelles_merged.shp")
@@ -66,7 +169,6 @@ to init-gis
 
   gis:load-coordinate-system (word "maps/" map-name "/sirene_small.prj")
   set sirene-dataset gis:load-dataset (word "maps/" map-name "/sirene_small.shp")
-
 
   ; Sample rows
   foreach n-of 1 gis:feature-list-of parcelles-dataset [ vector-feature ->
@@ -109,7 +211,6 @@ to init-gis
         gis:set-drawing-color black
         gis:fill vector-feature 3.0
       ]
-
     ]
   ]
 
@@ -133,18 +234,7 @@ to init-gis
   ;  set numero read-from-string numero
   ;  set plabel numero
   ;]
-
-
-
 end
-
-
-to go
-  ask ants [live]
-  update-gis
-  tick
-end
-
 
 to update-gis
   if color-map [
@@ -176,26 +266,6 @@ to update-gis
   ]
 end
 
-
-to live
-  if random-float 1 > 0.2 [ rt random 10]
-  fd 0.2
-
-  ; Color closest shop-as-turtle
-  if closest-shop != nobody [
-    ask closest-shop [
-      set size 0.5
-      set label ""
-  ]]
-  set closest-shop min-one-of shops in-radius 1 [distance myself]
-  if closest-shop != nobody [
-    ask closest-shop [
-      set size 1
-      set label label-text
-  ]]
-end
-
-
 to-report activity-color-of [sectionuni]
   if sectionuni = "Activites de services administratifs et de soutien" [report yellow]
   if sectionuni = "Activites financieres et d'assurance" [report yellow]
@@ -219,9 +289,9 @@ end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
-17
-838
-446
+10
+1038
+639
 -1
 -1
 20.0
@@ -234,10 +304,10 @@ GRAPHICS-WINDOW
 0
 0
 1
+-20
+20
 -15
 15
--10
-10
 1
 1
 1
@@ -295,7 +365,7 @@ SWITCH
 283
 fill-shapes
 fill-shapes
-1
+0
 1
 -1000
 
@@ -317,7 +387,7 @@ SWITCH
 318
 color-map
 color-map
-1
+0
 1
 -1000
 
@@ -342,6 +412,21 @@ shops-as-turtles
 0
 1
 -1000
+
+SLIDER
+742
+12
+914
+45
+population
+population
+0
+300
+82.0
+2
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -685,7 +770,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.0.4
+NetLogo 6.1.1
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
