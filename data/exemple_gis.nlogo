@@ -9,7 +9,7 @@ globals [
   sirene-dataset
   last-patch
   the-wells
-  base-money
+  delay-max
 ]
 
 patches-own [
@@ -20,11 +20,12 @@ ants-own [
   need
   destination
   money
+  delay
   closest-shop
 ]
 
 shops-own [
-  money
+  funds
   staff
   market
   label-text
@@ -40,12 +41,12 @@ to setup
   clear-all
   print "Starting..."
 
+  set delay-max 3000 ;; délai d'achat, j'ai pas trouvé mieux
   init-patches
   init-wells
   init-gis
   init-ants
   init-shops
-  set base-money 1
 
   print (word "world size: " (max-pxcor - min-pxcor) "x" (max-pycor - min-pycor))
   reset-ticks
@@ -67,7 +68,7 @@ end
 
 
 to init-wells
-  set the-wells (patch-set patch 9 -9 patch -7 7 patch 14 7)
+  set the-wells (patch-set patch 5 -5 patch -7 7 patch 14 7 patch -9 -3)
   ask the-wells [ set pcolor blue ]
 end
 
@@ -87,12 +88,13 @@ end
 
 
 to init-ants
-    create-ants population [
+  create-ants population [
     set shape "person"
     set color red
     set size 0.5
     set need random 3  ;; TODO : un truc mieux que random 3
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
+    set delay delay-max
     move-to one-of the-wells
     set destination one-of the-wells
     set closest-shop nobody
@@ -101,13 +103,18 @@ end
 
 to try-to-buy
   ask ants [
-    if money > 0 [
-      ask patch-here [
-        if is-agent? (one-of shops-here) [
-        ;  ask one-of shops-here with [market = (need of myself)] [set money (money + 1)] ;; TODO : A REVOIR
+    set delay (delay + 1)
+    if money > 0 and delay > delay-max [
+      let tmp-need need
+      let tmp-money money
+      if count shops in-radius 0.8 with [market = tmp-need] > 0 [
+        ask one-of shops in-radius 0.8 with [market = tmp-need] [
+          set funds (funds + 1)
+          set tmp-money (tmp-money - 1)
         ]
+        set money tmp-money
+        set delay 0
       ]
-      set money (money - 1)
     ]
   ]
 end
@@ -118,7 +125,9 @@ to move-to-destination
   if distance destination < 1 [
     move-to one-of the-wells
     set destination one-of the-wells
+    let reste money
     set money base-money
+    ask one-of shops [ set funds (funds - reste) ]
   ]
 end
 
@@ -148,7 +157,7 @@ end
 
 to init-shops
   ask shops[
-    set money 100
+    set funds 100
     set market random 3 ;; TODO : un truc mieux que random 3
   ]
 end
@@ -308,8 +317,8 @@ GRAPHICS-WINDOW
 20
 -15
 15
-1
-1
+0
+0
 1
 ticks
 30.0
@@ -360,9 +369,9 @@ NIL
 
 SWITCH
 10
-250
+175
 151
-283
+208
 fill-shapes
 fill-shapes
 0
@@ -371,9 +380,9 @@ fill-shapes
 
 MONITOR
 10
-355
+245
 102
-400
+290
 NIL
 count shops
 17
@@ -382,9 +391,9 @@ count shops
 
 SWITCH
 10
-285
+210
 150
-318
+243
 color-map
 color-map
 0
@@ -398,7 +407,7 @@ SWITCH
 173
 filter-shops
 filter-shops
-0
+1
 1
 -1000
 
@@ -414,16 +423,49 @@ shops-as-turtles
 -1000
 
 SLIDER
-742
-12
-914
-45
+10
+310
+182
+343
 population
 population
 0
 300
-82.0
+164.0
 2
+1
+NIL
+HORIZONTAL
+
+PLOT
+1080
+145
+1280
+295
+Shops Funds
+Funds
+Nb shops
+0.0
+200.0
+0.0
+200.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -955883 true "" "set-plot-y-range 0 40 histogram [funds] of shops"
+
+SLIDER
+10
+345
+182
+378
+base-money
+base-money
+1
+10
+3.0
+1
 1
 NIL
 HORIZONTAL
