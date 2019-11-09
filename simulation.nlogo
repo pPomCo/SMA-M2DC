@@ -170,14 +170,14 @@ end
 
 to init-gis
   ; Load maps
-  gis:load-coordinate-system (word "maps/" map-name "/parcelles_merged.prj")
-  set parcelles-dataset gis:load-dataset (word "maps/" map-name "/parcelles_merged.shp")
+  gis:load-coordinate-system (word "data/maps/" map-name "/parcelles_merged.prj")
+  set parcelles-dataset gis:load-dataset (word "data/maps/" map-name "/parcelles_merged.shp")
 
-  ;gis:load-coordinate-system (word "maps/" map-name "/batiments.prj")
-  ;set batiments-dataset gis:load-dataset (word "maps/" map-name "/batiments.shp")
+  ;gis:load-coordinate-system (word "data/maps/" map-name "/batiments.prj")
+  ;set batiments-dataset gis:load-dataset (word "data/maps/" map-name "/batiments.shp")
 
-  gis:load-coordinate-system (word "maps/" map-name "/sirene_small.prj")
-  set sirene-dataset gis:load-dataset (word "maps/" map-name "/sirene_small.shp")
+  gis:load-coordinate-system (word "data/maps/" map-name "/sirene_small.prj")
+  set sirene-dataset gis:load-dataset (word "data/maps/" map-name "/sirene_small.shp")
 
   ; Sample rows
   foreach n-of 1 gis:feature-list-of parcelles-dataset [ vector-feature ->
