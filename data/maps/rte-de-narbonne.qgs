@@ -22,10 +22,10 @@
   <mapcanvas>
     <units>degrees</units>
     <extent>
-      <xmin>1.4467386650000007</xmin>
-      <ymin>43.56287598749990764</ymin>
-      <xmax>1.4660475350000004</xmax>
-      <ymax>43.57516151249988923</ymax>
+      <xmin>1.44823303223024147</xmin>
+      <ymin>43.56449883103343979</ymin>
+      <xmax>1.46411848736467642</xmax>
+      <ymax>43.57460616285502653</ymax>
     </extent>
     <rotation>0</rotation>
     <projections>0</projections>
@@ -518,7 +518,7 @@ def my_form_open(dialog, layer, feature):
         <multilineenabled fieldname="" on=""/>
         <selectedonly on=""/>
       </labelattributes>
-      <annotationform></annotationform>
+      <annotationform>.</annotationform>
       <aliases>
         <alias field="id" index="0" name=""/>
         <alias field="commune" index="1" name=""/>
@@ -532,13 +532,13 @@ def my_form_open(dialog, layer, feature):
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <attributeactions default="-1"/>
-      <attributetableconfig actionWidgetStyle="dropDown" sortExpression="" sortOrder="4476485">
+      <attributetableconfig actionWidgetStyle="dropDown" sortExpression="" sortOrder="0">
         <columns/>
       </attributetableconfig>
-      <editform></editform>
+      <editform>.</editform>
       <editforminit/>
       <editforminitcodesource>0</editforminitcodesource>
-      <editforminitfilepath></editforminitfilepath>
+      <editforminitfilepath>.</editforminitfilepath>
       <editforminitcode><![CDATA[]]></editforminitcode>
       <featformsuppress>0</featformsuppress>
       <editorlayout>generatedlayout</editorlayout>
@@ -655,6 +655,9 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="dateferm_1">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
+        <edittype widgetv2type="TextEdit" name="market">
+          <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
+        </edittype>
       </edittypes>
       <renderer-v2 forceraster="0" symbollevels="0" type="singleSymbol" enableorderby="0">
         <symbols>
@@ -736,12 +739,39 @@ def my_form_open(dialog, layer, feature):
         <alias field="datefermet" index="20" name=""/>
         <alias field="tranchee_1" index="21" name=""/>
         <alias field="dateferm_1" index="22" name=""/>
+        <alias field="market" index="23" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <attributeactions default="-1"/>
-      <attributetableconfig actionWidgetStyle="dropDown" sortExpression="" sortOrder="0">
-        <columns/>
+      <attributetableconfig actionWidgetStyle="dropDown" sortExpression="&quot;sectionuni&quot;" sortOrder="0">
+        <columns>
+          <column width="-1" hidden="0" type="field" name="geolocetab"/>
+          <column width="-1" hidden="0" type="field" name="soussectio"/>
+          <column width="-1" hidden="0" type="field" name="activitepr"/>
+          <column width="-1" hidden="0" type="field" name="adresseeta"/>
+          <column width="-1" hidden="0" type="field" name="classeetab"/>
+          <column width="257" hidden="0" type="field" name="denominati"/>
+          <column width="-1" hidden="0" type="field" name="activite_1"/>
+          <column width="-1" hidden="0" type="field" name="numerovoie"/>
+          <column width="-1" hidden="0" type="field" name="datedebutu"/>
+          <column width="-1" hidden="0" type="field" name="nomenclatu"/>
+          <column width="-1" hidden="0" type="field" name="divisionun"/>
+          <column width="-1" hidden="0" type="field" name="libellevoi"/>
+          <column width="394" hidden="0" type="field" name="groupeetab"/>
+          <column width="359" hidden="0" type="field" name="sectionuni"/>
+          <column width="-1" hidden="0" type="field" name="datecreati"/>
+          <column width="-1" hidden="0" type="field" name="economieso"/>
+          <column width="-1" hidden="0" type="field" name="datecrea_1"/>
+          <column width="-1" hidden="0" type="field" name="soussect_1"/>
+          <column width="-1" hidden="0" type="field" name="divisionet"/>
+          <column width="-1" hidden="0" type="field" name="sexeunitel"/>
+          <column width="-1" hidden="0" type="field" name="datefermet"/>
+          <column width="-1" hidden="0" type="field" name="tranchee_1"/>
+          <column width="-1" hidden="0" type="field" name="dateferm_1"/>
+          <column width="-1" hidden="0" type="field" name="market"/>
+          <column width="-1" hidden="1" type="actions"/>
+        </columns>
       </attributetableconfig>
       <editform>.</editform>
       <editforminit/>
@@ -779,8 +809,9 @@ def my_form_open(dialog, layer, feature):
         <default field="datefermet" expression=""/>
         <default field="tranchee_1" expression=""/>
         <default field="dateferm_1" expression=""/>
+        <default field="market" expression=""/>
       </defaults>
-      <previewExpression></previewExpression>
+      <previewExpression>COALESCE( "geolocetab", '&lt;NULL>' )</previewExpression>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Point" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
       <extent>
