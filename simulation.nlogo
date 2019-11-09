@@ -1,22 +1,16 @@
 extensions [ gis ]
 
-breed [ants ant]
+breed [customers customer]
 breed [shops shop]
 
 globals [
   parcelles-dataset
-  batiments-dataset
   sirene-dataset
-  last-patch
   the-wells
   delay-max
 ]
 
-patches-own [
-  numero
-]
-
-ants-own [
+customers-own [
   need
   destination
   money
@@ -39,25 +33,20 @@ shops-own [
 
 to setup
   clear-all
-  print "Starting..."
 
   set delay-max 3000 ;; délai d'achat, j'ai pas trouvé mieux
   init-patches
   init-wells
   init-gis
-  init-ants
+  init-customers
   init-shops
 
-  print (word "world size: " (max-pxcor - min-pxcor) "x" (max-pycor - min-pycor))
   reset-ticks
 end
 
 to go
-  ask ants [
-    move-to-destination
-    try-to-buy
-  ]
-  update-gis
+  ask customers [ customer-live ]
+  ask shops [ shop-live ]
   tick
 end
 
@@ -73,12 +62,7 @@ to init-wells
 end
 
 to init-patches
-  ask patches [
-    set pcolor white
-    set plabel-color black
-    set numero "0"
-  ]
-  set last-patch patch 0 0
+  ask patches [ set pcolor white ]
 end
 
 
@@ -87,8 +71,8 @@ end
 ;; =================================
 
 
-to init-ants
-  create-ants population [
+to init-customers
+  create-customers population [
     set shape "person"
     set color red
     set size 0.5
@@ -101,8 +85,13 @@ to init-ants
   ]
 end
 
-to try-to-buy
-  ask ants [
+to customer-live  ;turtle procedure
+  move-to-destination
+  try-to-buy
+end
+
+to try-to-buy ;turtle procedure
+  ;ask customers [
     set delay (delay + 1)
     if money > 0 and delay > delay-max [
       let tmp-need need
@@ -116,10 +105,10 @@ to try-to-buy
         set delay 0
       ]
     ]
-  ]
+  ;]
 end
 
-to move-to-destination
+to move-to-destination ; turtle procedure
   face destination
   fd random-float 1
   if distance destination < 1 [
@@ -129,24 +118,6 @@ to move-to-destination
     set money base-money
     ask one-of shops [ set funds (funds - reste) ]
   ]
-end
-
-to live
-  if random-float 1 > 0.2 [rt random 10]
-  fd 0.2
-
-  ; Color closest shop-as-turtle
-  if closest-shop != nobody [
-    ask closest-shop [
-      set size 0.5
-      set label ""
-  ]]
-  set closest-shop min-one-of shops in-radius 1 [distance myself]
-  if closest-shop != nobody [
-    ask closest-shop [
-      set size 1
-      set label label-text
-  ]]
 end
 
 
@@ -162,6 +133,9 @@ to init-shops
   ]
 end
 
+to shop-live ; turtle procedure
+end
+
 
 ;; =================================
 ;; Functions relative to GIS
@@ -173,107 +147,43 @@ to init-gis
   gis:load-coordinate-system (word "data/maps/" map-name "/parcelles_merged.prj")
   set parcelles-dataset gis:load-dataset (word "data/maps/" map-name "/parcelles_merged.shp")
 
-  ;gis:load-coordinate-system (word "data/maps/" map-name "/batiments.prj")
-  ;set batiments-dataset gis:load-dataset (word "data/maps/" map-name "/batiments.shp")
-
   gis:load-coordinate-system (word "data/maps/" map-name "/sirene_small.prj")
   set sirene-dataset gis:load-dataset (word "data/maps/" map-name "/sirene_small.shp")
 
-  ; Sample rows
-  foreach n-of 1 gis:feature-list-of parcelles-dataset [ vector-feature ->
-    print vector-feature
-  ]
-  foreach n-of 2 gis:feature-list-of sirene-dataset [ vector-feature ->
-    print vector-feature
-  ]
 
   ; Fill shapes
+  let fill-shapes false
   if fill-shapes [
     gis:set-drawing-color brown + 2
     gis:fill parcelles-dataset 0
-    ;gis:set-drawing-color black
-    ;gis:fill batiments-dataset 0
   ]
 
   ; Draw shape boundaries
   gis:set-drawing-color black
   gis:draw parcelles-dataset 0
-  ;gis:draw batiments-dataset 0
 
   ; Shops
   foreach gis:feature-list-of sirene-dataset [ vector-feature ->
-    if gis:property-value vector-feature "LIBELLEVOI" = "DE NARBONNE" or not filter-shops [
-      ifelse shops-as-turtles [
-        let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
-        create-shops 1 [
-          set xcor item 0 location
-          set ycor item 1 location
-          set size 0.5
-          set shape "house"
-          ;set label-text gis:property-value vector-feature "DIVISIONUN"
-          set label-text gis:property-value vector-feature "SECTIONUNI"
-          set color activity-color-of label-text
-          set label-color black
-        ]
-      ]
-      [
-        gis:set-drawing-color black
-        gis:fill vector-feature 3.0
-      ]
+    let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
+    create-shops 1 [
+      set xcor item 0 location
+      set ycor item 1 location
+      set size 0.5
+      set shape "house"
+      set label-text gis:property-value vector-feature "SECTIONUNI"
+      set color activity-color-of label-text
+      set label-color black
     ]
-  ]
-
-  ; Print all gray shops (activity not recognized)
-  ask shops with [color = gray] [
-    print (word "gray shop: " label-text)
   ]
 
   ; Adapt sizes
   gis:set-world-envelope (gis:envelope-union-of
     (gis:envelope-of parcelles-dataset)
-    ;(gis:envelope-of batiments-dataset)
     (gis:envelope-of sirene-dataset)
   )
 
-  ; Set patch "numero" from gis, or 0 if NaN + update plabel
-  ;gis:apply-coverage parcelles-dataset "NUMERO" numero
-  ;ask patches [
-  ;  set numero (word numero)
-  ;  if numero = "NaN" [ set numero "0" ]
-  ;  set numero read-from-string numero
-  ;  set plabel numero
-  ;]
 end
 
-to update-gis
-  if color-map [
-    foreach gis:feature-list-of parcelles-dataset [ vector-feature ->
-      if gis:intersects? ants vector-feature [
-        gis:set-drawing-color green - 2
-        gis:fill vector-feature 0
-        gis:set-drawing-color black
-        gis:draw vector-feature 0
-      ]
-    ]
-  ]
-  ; Color shops as vector-feature
-  if not shops-as-turtles [
-    let p patches with [count ants-here > 0]
-    foreach gis:feature-list-of sirene-dataset [ vector-feature ->
-      if gis:property-value vector-feature "LIBELLEVOI" = "DE NARBONNE" or not filter-shops [
-        if gis:intersects? last-patch vector-feature [
-          gis:set-drawing-color black
-          gis:fill vector-feature 3.0
-        ]
-        if gis:intersects? p vector-feature [
-          gis:set-drawing-color red
-          gis:fill vector-feature 3.0
-        ]
-      ]
-    ]
-    set last-patch p
-  ]
-end
 
 to-report activity-color-of [sectionuni]
   if sectionuni = "Activites de services administratifs et de soutien" [report yellow]
@@ -317,8 +227,8 @@ GRAPHICS-WINDOW
 20
 -15
 15
-0
-0
+1
+1
 1
 ticks
 30.0
@@ -367,66 +277,22 @@ NIL
 NIL
 1
 
-SWITCH
-10
-175
-151
-208
-fill-shapes
-fill-shapes
-0
-1
--1000
-
 MONITOR
-10
-245
-102
-290
+1080
+300
+1172
+345
 NIL
 count shops
 17
 1
 11
 
-SWITCH
-10
-210
-150
-243
-color-map
-color-map
-0
-1
--1000
-
-SWITCH
-10
-140
-185
-173
-filter-shops
-filter-shops
-1
-1
--1000
-
-SWITCH
-10
-105
-185
-138
-shops-as-turtles
-shops-as-turtles
-0
-1
--1000
-
 SLIDER
 10
-310
+160
 182
-343
+193
 population
 population
 0
@@ -453,13 +319,13 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -955883 true "" "set-plot-y-range 0 40 histogram [funds] of shops"
+"default" 10.0 1 -955883 true "" "set-plot-y-range 0 40 histogram [funds] of shops"
 
 SLIDER
 10
-345
+195
 182
-378
+228
 base-money
 base-money
 1
