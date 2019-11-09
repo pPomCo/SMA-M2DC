@@ -1,4 +1,4 @@
-# ODD model description
+# ODD model description
 
 Template used: *Grimm V, Berger U, DeAngelis DL, Polhill JG, Giske J, Railsback SF. 1010. The ODD protocol: a review and first update. Ecological Modelling 221: 2760-2768.*
 
