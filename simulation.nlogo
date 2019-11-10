@@ -36,6 +36,7 @@ shops-own [
   funds
   staff
   market
+  queue
   label-text
 ]
 
@@ -180,7 +181,7 @@ to init-customers
   create-customers population [
     set shape "person"
     set color black
-    set size 2
+    set size 1.2
     ;set need random 3  ;; TODO : un truc mieux que random 3
     set need [market] of one-of shops
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
@@ -197,21 +198,26 @@ to customer-live  ;turtle procedure
 end
 
 to try-to-buy ;turtle procedure
-  ;ask customers [
-    set delay (delay + 1)
-    if money > 0 and delay > delay-max [
-      let tmp-need need
-      let tmp-money money
-      if count shops in-radius 0.8 with [market = tmp-need] > 0 [
-        ask one-of shops in-radius 0.8 with [market = tmp-need] [
+  set delay (delay + 1)
+  if money > 0 and delay > delay-max [
+    let tmp-need need
+    let tmp-money money
+    let bought false
+    if count shops in-radius 0.8 with [market = tmp-need] > 0 [
+      ask one-of shops in-radius 0.8 with [market = tmp-need] [
+        if random queue < patience [
+          set bought true
+          set queue (queue + queue-per-customer)
           set funds (funds + 1)
           set tmp-money (tmp-money - 1)
         ]
-        set money tmp-money
-        set delay 0
+      ]
+      if bought [
+      set money tmp-money
+      set delay 0
       ]
     ]
-  ;]
+  ]
 end
 
 
@@ -233,7 +239,7 @@ end
 to leave-world ; turtle-procedure
   move-to one-of the-wells
   set destination one-of the-wells
-  let reste money
+  let reste (base-money - money)
   set money base-money
   ask one-of shops [ set funds (funds - reste) ]
 end
@@ -268,6 +274,7 @@ to init-shops
     set funds 100
     set size 2
     set shape "house"
+    set queue 0
     set label-color black
     shop-update
   ]
@@ -325,11 +332,12 @@ end
 ;; Update shop style wrt its values
 to shop-update ; turtle procedure
   set color color-of-market market
-  set size funds / 40
+  set size funds / 100
+  if size >= 4 [ set size 4 ]
 end
 
-
 to shop-live ; turtle procedure
+  if queue >= queue-speed [ set queue (queue - queue-speed) ]
   shop-update
 end
 
@@ -498,7 +506,7 @@ population
 population
 0
 300
-100.0
+300.0
 2
 1
 NIL
@@ -507,7 +515,7 @@ HORIZONTAL
 PLOT
 825
 10
-1025
+1040
 160
 Shops Funds
 Funds
@@ -531,7 +539,7 @@ base-money
 base-money
 1
 10
-1.0
+10.0
 1
 1
 NIL
@@ -545,7 +553,7 @@ CHOOSER
 display-shops
 display-shops
 "All" "Relevant (?)" "Restaurants" "Retail stores" "Health"
-1
+0
 
 CHOOSER
 10
@@ -558,10 +566,10 @@ display-roads
 4
 
 PLOT
-835
-235
-1035
-385
+825
+215
+1040
+365
 Needs
 NIL
 NIL
@@ -592,6 +600,62 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+10
+360
+182
+393
+queue-speed
+queue-speed
+1
+10
+7.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+395
+182
+428
+queue-per-customer
+queue-per-customer
+0
+200
+80.0
+10
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+430
+182
+463
+patience
+patience
+0
+1000
+600.0
+100
+1
+NIL
+HORIZONTAL
+
+MONITOR
+920
+165
+1040
+210
+NIL
+sum [funds] of shops
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
