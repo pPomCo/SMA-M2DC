@@ -40,6 +40,25 @@ We modelize at the *block* level (a few streets)
 
 *Questions: Who (i.e., what entity) does what, and in what order? When are state variables updated? How is time modeled, as discrete steps or as a continuum over which both continuous processes and discrete events can occur? Except for very simple schedules, one should use pseudo-code to describe the schedule in every detail, so that the model can be re-implemented from this code. Ideally, the pseudo-code corresponds fully to the actual code used in the program implementing the ABM.*
 
+#### Customer behavior
+
+Customers are generated at wells, and have walks through the map to reach their exit wells. During their walk, they will intend to buy at shops corresponding to their need.
+
+- **Birth/death:**
+    - For now, we have a static population approach:
+        - Customers are generated at wells during initialization
+        - Customers who reach their exit well are instantaneously re-generated in a new entrance well.
+    - Another solution (dynamic population):
+        - Customers are generated at wells at any time (according to the strength of the well)
+        - Customers die when they reach they exit well. 
+    - At birth, state variables are set:
+        - *destination*: where the customer leave the world
+        - *need*: what the customer buys
+- **Walk:**
+    - At initialiation, road patches propagate distance to wells, so that every road patch knows its distance to each well.
+    - During execution, a customer will move to the road patch that is the closest to her exit well, according to the previously computed values.
+- **Buying:**
+    - N/A
 
 ## Design concepts
 
@@ -51,6 +70,7 @@ We modelize at the *block* level (a few streets)
      - If the waiting lane of a shop is greater than *x*, the customer will continue to walk, expecting a new shop on her way
  - Objectives
      - The customer intent to satisfy all her needs, that is to spend money in the corresponding shops
+     - The customer try to reach her exit well
  - Learning
  - Prediction
  - Sensing
@@ -58,6 +78,7 @@ We modelize at the *block* level (a few streets)
  - Stochasticity
  - Collectives
  - Observation
+ 
 ## Initialization
 
 *Questions: What is the initial state of the model world, i.e., at time t = 0 of a simulation run? In detail, how many entities of what type are there initially, and what are the exact values of their state variables (or how were they set stochastically)? Is initialization always the same, or is it allowed to vary among simulations? Are the initial values chosen arbitrarily or based on data? References to those data should be provided.*
