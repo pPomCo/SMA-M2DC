@@ -2,9 +2,9 @@
 
 ## GeoData
 
- - Add wells 
- - Add roads
- - Add integer id for activity (*market*)
+ - **[DONE]** Add wells
+ - **[DONE]** Add roads
+ - **[DONE]** Add integer id for activity (*market*)
  - Add subcategories 
      - *Restauration*
      - *Commerces de détail*
@@ -24,9 +24,9 @@
 
 ## Implementation
 
- - Init shops from geoData
- - Init wells from geoData
- - Walk procedure
+ - **[DONE]** Init shops from geoData
+ - **[DONE]** Init wells from geoData
+ - **[DONE]** Walk procedure
  - Buy procedure
  - Shop update procedure
  - Shop change procedure
