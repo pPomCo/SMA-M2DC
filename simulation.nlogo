@@ -4,10 +4,24 @@ breed [customers customer]
 breed [shops shop]
 
 globals [
-  parcelles-dataset
-  sirene-dataset
+  blocks-dataset
+  roads-dataset
+  shops-dataset
+  wells-dataset
+
   the-wells
   delay-max
+
+  n-wells
+]
+
+patches-own [
+  is-road
+  is-well
+  well-weight
+
+  well-num
+  distance-to-wells
 ]
 
 customers-own [
@@ -34,12 +48,13 @@ shops-own [
 to setup
   clear-all
 
-  set delay-max 3000 ;; délai d'achat, j'ai pas trouvé mieux
+  load-datasets
+
+  set delay-max 0; 3000 ;; délai d'achat, j'ai pas trouvé mieux
   init-patches
-  init-wells
   init-gis
-  init-customers
   init-shops
+  init-customers
 
   reset-ticks
 end
@@ -47,6 +62,7 @@ end
 to go
   ask customers [ customer-live ]
   ask shops [ shop-live ]
+  ask patches [ patch-update ]
   tick
 end
 
@@ -56,14 +72,103 @@ end
 ;; =================================
 
 
-to init-wells
-  set the-wells (patch-set patch 5 -5 patch -7 7 patch 14 7 patch -9 -3)
-  ask the-wells [ set pcolor blue ]
+;; Initialize patches
+to init-patches
+  init-wells
+  init-roads
+  ask patches [patch-update]
 end
 
-to init-patches
-  ask patches [ set pcolor white ]
+
+;; Initialize well-related patch attibutes
+to init-wells
+  ;set the-wells (patch-set patch 5 -5 patch -7 7 patch 14 7 patch -9 -3)
+  ;ask the-wells [ set pcolor blue ]
+
+
+  ;; Default attrs
+  ask patches [
+    set is-well 0
+    set well-weight 0
+    set well-num -1
+  ]
+
+  ;; Attrs from dataset
+  set n-wells 0
+  foreach gis:feature-list-of wells-dataset [ vector-feature ->
+    let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
+    let p patch item 0 location item 1 location
+    ask p [
+      set well-weight gis:property-value vector-feature "W"
+      set well-num n-wells
+    ]
+    set n-wells n-wells + 1
+  ]
+
+  ;; Global agentset the-wells
+  set the-wells patches with [well-weight > 0]
+  set n-wells count the-wells
 end
+
+
+
+;; Initialize road-related patch attributes
+to init-roads
+
+  ;; Default attrs
+  ask patches [set is-road false]
+
+  ;; Road patches from dataset
+  ask patches gis:intersecting roads-dataset [set is-road true]
+
+  ;; Compute distance to wells
+  print "Compute distance to wells..."
+  ask patches [
+    set distance-to-wells (map [ _ -> 100000 ] (range n-wells))
+  ]
+  foreach range n-wells [i ->
+    ask patches with [well-num = i] [
+      set distance-to-wells (replace-item i distance-to-wells 1)
+      ask neighbors [ propagate-distance-to-wells i ]
+    ]
+  ]
+end
+
+to propagate-distance-to-wells [i] ;patch procedure
+  let ngs neighbors with [is-road]
+  if any? ngs [
+    let w item i distance-to-wells
+    let w2 (min [item i distance-to-wells] of neighbors) + 2
+    if w2 < w [
+      set distance-to-wells (replace-item i distance-to-wells w2)
+      ask neighbors with [is-road] [propagate-distance-to-wells i]
+    ]
+  ]
+end
+
+
+
+;; Update patch style wrt its attributes
+to patch-update ; patch-procedure
+  let draw-wells true
+  let draw-roads true
+  set pcolor white
+  set plabel-color black
+  if is-road [
+    if display-roads = "plain"   [ set pcolor white - 1 ]
+    if display-roads = "density" [ set pcolor white - ((count customers in-radius 5) / 5)]
+    if display-roads = "funds"   [ set pcolor white - ((sum [funds] of shops in-radius 5) / 500) ]
+    if display-roads = "well0" [ set pcolor white - ((item 0 distance-to-wells) / 15)  ]
+    if display-roads = "well1" [ set pcolor white - ((item 1 distance-to-wells) / 15)  ]
+    if display-roads = "well2" [ set pcolor white - ((item 2 distance-to-wells) / 15)  ]
+  ]
+  if draw-wells and well-weight > 0 [ set pcolor blue ]
+end
+
+
+
+
+
 
 
 ;; =================================
@@ -74,9 +179,10 @@ end
 to init-customers
   create-customers population [
     set shape "person"
-    set color red
-    set size 0.5
-    set need random 3  ;; TODO : un truc mieux que random 3
+    set color black
+    set size 2
+    ;set need random 3  ;; TODO : un truc mieux que random 3
+    set need [market] of one-of shops
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
     set delay delay-max
     move-to one-of the-wells
@@ -108,17 +214,35 @@ to try-to-buy ;turtle procedure
   ;]
 end
 
+
+;; Move to destination, trying to keep on roads
 to move-to-destination ; turtle procedure
-  face destination
+  let my-well-num [well-num] of destination
+  face min-one-of neighbors with [is-road] [(item my-well-num distance-to-wells) + random-float 1]
   fd random-float 1
-  if distance destination < 1 [
-    move-to one-of the-wells
-    set destination one-of the-wells
-    let reste money
-    set money base-money
-    ask one-of shops [ set funds (funds - reste) ]
-  ]
+  if distance destination < 1 [ leave-world ]
 end
+
+;to move-to-destination ; turtle procedure
+;  face destination
+;  fd random-float 1
+;  if distance destination < 1 [ leave-world ]
+;end
+
+;; Customer behavior when reaching its exit patch
+to leave-world ; turtle-procedure
+  move-to one-of the-wells
+  set destination one-of the-wells
+  let reste money
+  set money base-money
+  ask one-of shops [ set funds (funds - reste) ]
+end
+
+
+
+
+
+
 
 
 ;; =================================
@@ -126,14 +250,87 @@ end
 ;; =================================
 
 
+;; Initialize shops
 to init-shops
-  ask shops[
+
+  ;; Create shops from dataset
+  foreach gis:feature-list-of shops-dataset [ vector-feature ->
+    if is-displayed vector-feature [
+      let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
+      create-shops 1 [
+        set xcor item 0 location
+        set ycor item 1 location
+        set market gis:property-value vector-feature "MARKET"
+      ]
+    ]
+  ]
+  ask shops [
     set funds 100
-    set market random 3 ;; TODO : un truc mieux que random 3
+    set size 2
+    set shape "house"
+    set label-color black
+    shop-update
   ]
 end
 
+
+;; Noise shop locations
+to add-noise
+  let noise-strength 1
+  ask shops [
+    set xcor xcor + noise-strength - random-float (2 * noise-strength)
+    set ycor ycor + noise-strength - random-float (2 * noise-strength)
+    if not is-road [move-to min-one-of patches with [is-road] [distance myself]]
+  ]
+end
+
+
+;; Displayness of a shop according to the 'display-shops' value
+to-report is-displayed [vector-feature]
+
+  ;; No filter
+  if display-shops = "All" [
+    report true
+  ]
+
+  ;; Restaurants: market=12
+  if display-shops = "Relevant (?)" [
+    let m gis:property-value vector-feature "market"
+    report (m = 12) or (m = 9) or (m = 16)
+  ]
+
+  ;; Restaurants: market=12
+  if display-shops = "Restaurants" [
+    let m gis:property-value vector-feature "market"
+    report (m = 12)
+  ]
+
+  ;; Restaurants: market=12
+  if display-shops = "Retail stores" [
+    let m gis:property-value vector-feature "market"
+    report (m = 9)
+  ]
+
+  ;; Restaurants: market=12
+  if display-shops = "Health" [
+    let m gis:property-value vector-feature "market"
+    report (m = 16)
+  ]
+
+  ;; Defaults -- no shop displayed
+  report false
+end
+
+
+;; Update shop style wrt its values
+to shop-update ; turtle procedure
+  set color color-of-market market
+  set size funds / 40
+end
+
+
 to shop-live ; turtle procedure
+  shop-update
 end
 
 
@@ -142,80 +339,84 @@ end
 ;; =================================
 
 
-to init-gis
-  ; Load maps
-  gis:load-coordinate-system (word "data/maps/" map-name "/parcelles_merged.prj")
-  set parcelles-dataset gis:load-dataset (word "data/maps/" map-name "/parcelles_merged.shp")
 
-  gis:load-coordinate-system (word "data/maps/" map-name "/sirene_small.prj")
-  set sirene-dataset gis:load-dataset (word "data/maps/" map-name "/sirene_small.shp")
+to load-datasets
 
+  ; Load dataset
+  gis:load-coordinate-system (word "data/maps/" map-name "/blocks.prj")
+  set blocks-dataset gis:load-dataset (word "data/maps/" map-name "/blocks.shp")
 
-  ; Fill shapes
-  let fill-shapes false
-  if fill-shapes [
-    gis:set-drawing-color brown + 2
-    gis:fill parcelles-dataset 0
-  ]
+  gis:load-coordinate-system (word "data/maps/" map-name "/roads.prj")
+  set roads-dataset gis:load-dataset (word "data/maps/" map-name "/roads.shp")
 
-  ; Draw shape boundaries
-  gis:set-drawing-color black
-  gis:draw parcelles-dataset 0
+  gis:load-coordinate-system (word "data/maps/" map-name "/shops.prj")
+  set shops-dataset gis:load-dataset (word "data/maps/" map-name "/shops.shp")
 
-  ; Shops
-  foreach gis:feature-list-of sirene-dataset [ vector-feature ->
-    let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
-    create-shops 1 [
-      set xcor item 0 location
-      set ycor item 1 location
-      set size 0.5
-      set shape "house"
-      set label-text gis:property-value vector-feature "SECTIONUNI"
-      set color activity-color-of label-text
-      set label-color black
-    ]
-  ]
+  gis:load-coordinate-system (word "data/maps/" map-name "/wells.prj")
+  set wells-dataset gis:load-dataset (word "data/maps/" map-name "/wells.shp")
 
   ; Adapt sizes
   gis:set-world-envelope (gis:envelope-union-of
-    (gis:envelope-of parcelles-dataset)
-    (gis:envelope-of sirene-dataset)
+    (gis:envelope-of blocks-dataset)
+    (gis:envelope-of shops-dataset)
+    (gis:envelope-of roads-dataset)
+    (gis:envelope-of wells-dataset)
   )
 
 end
 
 
-to-report activity-color-of [sectionuni]
-  if sectionuni = "Activites de services administratifs et de soutien" [report yellow]
-  if sectionuni = "Activites financieres et d'assurance" [report yellow]
-  if sectionuni = "Activites immobilieres" [report blue]
-  if sectionuni = "Activites specialisees, scientifiques et techniques" [report pink]
-  if sectionuni = "Administration publique" [report black]
-  if sectionuni = "Agriculture, sylviculture et peche" [report green]
-  if sectionuni = "Arts, spectacles et activites recreatives" [report red]
-  if sectionuni = "Autres activites de services" [report orange]
-  if sectionuni = "Commerce ; reparation d'automobiles et de motocycles" [report magenta]
-  if sectionuni = "Construction" [report cyan]
-  if sectionuni = "Enseignement" [report violet]
-  if sectionuni = "Hebergement et restauration" [report lime]
-  if sectionuni = "Industrie manufacturiere" [report brown]
-  if sectionuni = "Information et communication" [report sky]
-  if sectionuni = "Production et distribution d'electricite, de gaz, de vapeur et d'air conditionne" [report black]
-  if sectionuni = "Sante humaine et action sociale" [report turquoise]
-  if sectionuni = "Transports et entreposage" [report blue + 2]
-  report gray
+;; Draw vector shapes from datasets
+to init-gis
+
+  ; Fill shapes
+  let fill-shapes false
+  if fill-shapes [
+    gis:set-drawing-color brown + 2
+    gis:fill blocks-dataset 0
+  ]
+
+  ; Draw shape boundaries
+  gis:set-drawing-color black
+  gis:draw blocks-dataset 0
+
 end
+
+;; Color of a market
+to-report color-of-market [market_num]
+  report (10 * market) + 7
+end
+
+;; Market codes:
+;;  1 = "Activites de services administratifs et de soutien"
+;;  2 = "Activites financieres et d'assurance"
+;;  3 = "Activites immobilieres"
+;;  4 = "Activites specialisees, scientifiques et techniques"
+;;  5 = "Administration publique"
+;;  6 = "Agriculture, sylviculture et peche"
+;;  7 = "Arts, spectacles et activites recreatives"
+;;  8 = "Autres activites de services"
+;;  9 = "Commerce ; reparation d'automobiles et de motocycles"
+;;  10 = "Construction"
+;;  11 = "Enseignement"
+;;  12 = "Hebergement et restauration"
+;;  13 = "Industrie manufacturiere"
+;;  14 = "Information et communication"
+;;  15 = "Production et distribution d'electricite, de gaz, de vapeur et d'air conditionne"
+;;  16 = "Sante humaine et action sociale"
+;;  17 = "Transports et entreposage"
+;;  0 = *
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-1038
-639
+823
+474
 -1
 -1
-20.0
+5.0
 1
-10
+11
 1
 1
 1
@@ -223,10 +424,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--20
-20
--15
-15
+-60
+60
+-45
+45
 1
 1
 1
@@ -235,9 +436,9 @@ ticks
 
 CHOOSER
 10
-55
+95
 196
-100
+140
 map-name
 map-name
 "rte-de-narbonne"
@@ -278,10 +479,10 @@ NIL
 1
 
 MONITOR
-1080
-300
-1172
-345
+825
+165
+917
+210
 NIL
 count shops
 17
@@ -290,24 +491,24 @@ count shops
 
 SLIDER
 10
-160
+290
 182
-193
+323
 population
 population
 0
 300
-164.0
+100.0
 2
 1
 NIL
 HORIZONTAL
 
 PLOT
-1080
-145
-1280
-295
+825
+10
+1025
+160
 Shops Funds
 Funds
 Nb shops
@@ -323,18 +524,74 @@ PENS
 
 SLIDER
 10
-195
+325
 182
-228
+358
 base-money
 base-money
 1
 10
-3.0
+1.0
 1
 1
 NIL
 HORIZONTAL
+
+CHOOSER
+10
+145
+195
+190
+display-shops
+display-shops
+"All" "Relevant (?)" "Restaurants" "Retail stores" "Health"
+1
+
+CHOOSER
+10
+195
+195
+240
+display-roads
+display-roads
+"no" "plain" "density" "funds" "well0" "well1" "well2"
+4
+
+PLOT
+835
+235
+1035
+385
+Needs
+NIL
+NIL
+0.0
+17.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 1 -16777216 true "" "histogram [need] of customers"
+"pen-1" 1.0 1 -7500403 true "" "histogram [market] of shops"
+
+BUTTON
+10
+50
+112
+83
+NIL
+add-noise
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
