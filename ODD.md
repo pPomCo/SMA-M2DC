@@ -38,7 +38,7 @@ We modelize at the *block* level (a few streets)
 
 ## Process overview and scheduling
 
-*Questions: Who (i.e., what entity) does what, and in what order? When are state variables updated? How is time modeled, as discrete steps or as a continuum over which both continuous processes and discrete events can occur? Except for very simple schedules, one should use pseudo-code to describe the schedule in every detail, so that the model can be re-implemented from this code. Ideally, the pseudo-code corresponds fully to the actual code used in the program implementing the ABM.*
+*Questions: Who (i.e. what entity) does what, and in what order? When are state variables updated? How is time modeled, as discrete steps or as a continuum? Over which continuous processes and discrete events can occur? Except for very simple schedules, one should use pseudo-code to describe the schedule in every detail, so that the model can be re-implemented from this code. Ideally, the pseudo-code corresponds fully to the actual code used in the program implementing the ABM.*
 
 
 ## Design concepts
@@ -48,9 +48,9 @@ We modelize at the *block* level (a few streets)
  - Basic principles
  - Emergence
  - Adaptation
-     - If the waiting lane of a shop is greater than *x*, the customer will continue to walk, expecting a new shop on her way
+     - If the waiting lane of a shop is greater than *x*, the customer will continue to walk, expecting a new shop along the way
  - Objectives
-     - The customer intent to satisfy all her needs, that is to spend money in the corresponding shops
+     - The customer intent to satisfy all his needs, i.e. to spend money in the corresponding shops
  - Learning
  - Prediction
  - Sensing
