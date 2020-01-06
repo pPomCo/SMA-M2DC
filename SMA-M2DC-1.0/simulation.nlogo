@@ -1,7 +1,76 @@
+; Modifications
+;
+; 1. Les customers sont initialisés avec un need choisi au hasard parmi les markets des shops
+;    -> tous les needs ont au moins un shop correspondant
+;    -> les needs suivent la même distribution que les markets
+;    (modif dans init-customers et leave-world)
+;
+; 1b.Les nouveaux shops sont créés avec le même market que le créateur
+;    -> Aucun nouveau market n'est créé
+;    -> Plus sensé ? Si un restaurant fonctionne, il ouvre un nouveau resto, pas une laverie :-)
+;
+; 2. Ajout de bruit dans la position des shops (à l'initialisation)
+;    Même effet qu'un clic sur le bouton add-noise (qui devient inutile)
+;    -> Permet de distinguer les shops multiples à la même adresse
+;    -> Permet de ramener sur la route les shops trop loin
+;
+; 3. Ajout des sliders pour ne pas mettre des constantes arbitraires
+;    en dur dans le code :
+;    - customer-vision (à l'origine =0.8)
+;    - delay-max (à l'origine =0) <<- j'aurai tendance à l'appeler delay-min.
+;      Il est très bien à 2 * customer-vision : le customer ne revient pas dans la même boutique
+;    - one-shop-over-n <<- affiche un shop sur n uniquement (à l'initialisation)
+;
+; 4. Nouveaux shops (duplicate) : ajout uniquement sur les patches 'road' (comme avec add-noise)
+;    -> Les customers peuvent y accéder
+;
+; 5. Ajout d'une turtle 'dollar' qui apparaît seulement pendant un tick sur un shop,
+;    lorsqu'un customer consomme (c'est pour moi pour comprendre ce qu'il se passe). C'est un cercle jaune
+;
+; 6. Retrait du random sur la queue / patience.
+;    Peut-être est-il justifié, mais pas entre 0 et 100% de la patience, plutôt entre 75 et 100% par exemple
+;    PS : pourquoi avoir une queue-per-customer et une queue-speed ?
+;         on devrait pouvoir avoir queue-per-customer = 1 (un mec de plus dans la queue)
+;         et tout régler avec queue-speed et patience
+;
+; 7. Ajout de 'add-well'
+;    -> Permet de simuler l'ajout d'une station de bus, etc.
+;    -> Positionnement aléatoire (c'est nul !)
+;    -> Besoin de recalculer les distances des patches aux puits (c'est bof)
+;
+; 8. Trucs annexes :
+;    - Utilisation de starting-funds à l'initialisation des shops
+;    - Taille des shops en log(funds) -> on voit les petits, les gros sont raisonnables
+;
+; 9. try-to-buy : une version plus efficace (pour mon pauvre PC qui rame, qui rame...)
+;
+;
+; Notes :
+;  - il y a deux trucs que je trouve bizarre :
+;    - Le coup de 'queue-per-customer' qui est redondant avec 'queue-speed' ou 'patience'.
+;      On peut en mettre un à 1 (p.ex. queue-per-customer)
+;    - Un customer qui apparaît fait perdre de l'argent à un shop aléatoire.
+;      J'ai essayé de mettre une taxe à la place (pour tous les shops, à chaque tick),
+;      puis je l'ai enlevée (pas su la paramétrer). Mais elle paraît plus réaliste :-)
+;  - Avec certains réglages on arrive à avoir les effets qu'on veut simuler :
+;    - Les shops se concentrent sur les entrées et voies principales
+;    - Les shops de même type se retrouvent côte-à-côte (forte concurrence)
+;    Pour cela j'utilise (au pif) :
+;    - Patience = 100, queue-speed = 1, queue-per-customer = 10
+;      i.e. si on fixe queue-per-customer à 1, on a patience = 10 et queue-speed = 0.1
+;      pour le même résultat
+;    - base-money = 3
+;    - population = 180
+;    - max-duplicate-distance = 5
+;    Après quelques milliers de ticks pour faire disparaître les shops mal placés,
+;    on observe le regroupement des shops autour des shops bien situés
+
+
 extensions [ gis ]
 
 breed [customers customer]
 breed [shops shop]
+breed [dollars dollar]
 
 globals [
   blocks-dataset
@@ -10,9 +79,10 @@ globals [
   wells-dataset
 
   the-wells
-  delay-max
-
   n-wells
+
+  new-shops  ; Compteur
+  dead-shops ; Compteur
 ]
 
 patches-own [
@@ -51,7 +121,9 @@ to setup
 
   load-datasets
 
-  set delay-max 0; 3000 ;; délai d'achat, j'ai pas trouvé mieux
+  ;set delay-max 0; 3000 ;; délai d'achat, j'ai pas trouvé mieux
+  set new-shops 0
+  set dead-shops 0
   init-patches
   init-gis
   init-shops
@@ -61,6 +133,7 @@ to setup
 end
 
 to go
+  ask dollars [die]
   ask customers [ customer-live ]
   ask shops [ shop-live ]
   ask patches [ patch-update ]
@@ -89,7 +162,7 @@ to init-wells
 
   ;; Default attrs
   ask patches [
-    set is-well 0
+    set is-well false
     set well-weight 0
     set well-num -1
   ]
@@ -102,13 +175,27 @@ to init-wells
     ask p [
       set well-weight gis:property-value vector-feature "W"
       set well-num n-wells
+      set is-well true
     ]
     set n-wells (n-wells + 1)
   ]
 
   ;; Global agentset the-wells
-  set the-wells patches with [well-weight > 0]
+  set the-wells patches with [is-well]
   set n-wells count the-wells
+end
+
+
+;; Add a new well to the road patches
+to add-well
+  ask one-of patches with [is-road and not is-well] [
+    set is-well true
+    set well-weight random 5
+    set well-num n-wells
+  ]
+  set the-wells patches with [is-well]
+  set n-wells count the-wells
+  init-roads
 end
 
 
@@ -163,7 +250,7 @@ to patch-update ; patch-procedure
     if display-roads = "well1" [ set pcolor white - ((item 1 distance-to-wells) / 15)  ]
     if display-roads = "well2" [ set pcolor white - ((item 2 distance-to-wells) / 15)  ]
   ]
-  if draw-wells and well-weight > 0 [ set pcolor blue ]
+  if draw-wells and is-well [ set pcolor blue ]
 end
 
 
@@ -182,8 +269,8 @@ to init-customers
     set shape "person"
     set color black
     set size 1.2
-    set need random 17
-    ;set need [market] of one-of shops
+    ;set need random 17
+    set need [market] of one-of shops ; need: au hasard parmi les 'market' proposés par les boutiques
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
     set delay delay-max
     move-to one-of the-wells
@@ -194,22 +281,30 @@ end
 
 to customer-live  ;turtle procedure
   move-to-destination
-  try-to-buy
+  try-to-buy2
 end
 
+; Note: version "optimisée" en dessous (nommée try-to-buy2)
 to try-to-buy ;turtle procedure
   set delay (delay + 1)
   if money > 0 and delay > delay-max [
     let tmp-need need
     let tmp-money money
     let bought false
-    if count shops in-radius 0.8 with [market = tmp-need] > 0 [
-      ask one-of shops in-radius 0.8 with [market = tmp-need] [
-        if random queue < patience [
+    let the-shop one-of shops in-radius customer-vision with [market = tmp-need] ;small optimization
+    if the-shop != nobody [
+      ask the-shop [
+        ;if random queue < patience [
+        if queue < patience [
           set bought true
           set queue (queue + queue-per-customer)
           set funds (funds + 1)
           set tmp-money (tmp-money - 1)
+          hatch-dollars 1 [
+            set shape "circle"
+            set size 2
+            set color yellow
+          ]
         ]
       ]
       if bought [
@@ -220,6 +315,29 @@ to try-to-buy ;turtle procedure
   ]
 end
 
+; Same as before, but faster
+to try-to-buy2 ;turtle procedure
+  set delay (delay + 1)
+  if money > 0 and delay > delay-max [
+    ; The close-enough shop of the good type with the shortest waiting lane.
+    let the-shop min-one-of shops in-radius customer-vision with [market = [need] of myself] [queue]
+    if the-shop != nobody [
+      if [queue] of the-shop < patience [
+        ask the-shop [
+          set queue (queue + queue-per-customer)
+          set funds (funds + 1)
+          hatch-dollars 1 [
+            set shape "circle"
+            set size 2
+            set color yellow
+          ]
+        ]
+        set money money - 1
+        set delay 0
+      ]
+    ]
+  ]
+end
 
 ;; Move to destination, trying to keep on roads
 to move-to-destination ; turtle procedure
@@ -241,7 +359,9 @@ to leave-world ; turtle-procedure
   set destination one-of the-wells
   let reste (base-money - money)
   set money base-money
-  set need random 17
+  ;set need random 17
+  set need [market] of one-of shops ; need: au hasard parmi les 'market' proposés par les boutiques
+
   ask one-of shops [ set funds (funds - reste) ]
 end
 
@@ -261,24 +381,29 @@ end
 to init-shops
 
   ;; Create shops from dataset
+  let i 0
   foreach gis:feature-list-of shops-dataset [ vector-feature ->
     if is-displayed vector-feature [
-      let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
-      create-shops 1 [
-        set xcor item 0 location
-        set ycor item 1 location
-        set market gis:property-value vector-feature "MARKET"
+      if i mod one-shop-over-n = 0 [
+        let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
+        create-shops 1 [
+          set xcor item 0 location
+          set ycor item 1 location
+          set market gis:property-value vector-feature "MARKET"
+        ]
       ]
+      set i  i + 1
     ]
   ]
   ask shops [
-    set funds 100
+    set funds starting-funds
     set size 2
     set shape "house"
     set queue 0
     set label-color black
     shop-update
   ]
+  add-noise
 end
 
 
@@ -288,10 +413,14 @@ to add-noise
   ask shops [
     set xcor xcor + noise-strength - random-float (2 * noise-strength)
     set ycor ycor + noise-strength - random-float (2 * noise-strength)
-    if not is-road [move-to min-one-of patches with [is-road] [distance myself]]
+    reach-a-road
   ]
 end
 
+;; Move misplaced shop on roads
+to reach-a-road ;turtle procedure
+  if not is-road [move-to min-one-of patches with [is-road] [distance myself]]
+end
 
 ;; Displayness of a shop according to the 'display-shops' value
 to-report is-displayed [vector-feature]
@@ -333,27 +462,37 @@ end
 ;; Update shop style wrt its values
 to shop-update ; turtle procedure
   set color color-of-market market
-  set size funds / 50
+  set size (log funds 2) / 2
   ; if size >= 5 [ set size 5 ]
 end
 
-;; expend a rich shop randomly
+;; expend a rich shop
 to shop-duplicate ; turtle procedure
   hatch-shops 1 [
-    set market (random 17)
-    move-to one-of (patches in-radius max-duplicate-distance)
+    ;set market (random 17)
+    ;move-to one-of (patches in-radius max-duplicate-distance)
+    set market [market] of myself ;expand with the same kind of shop
+    move-to one-of (patches with [is-road] in-radius max-duplicate-distance) ;expand only on roads (reachable by customers)
     set funds starting-funds
+    set new-shops new-shops + 1
   ]
 end
 
 to shop-live ; turtle procedure
-  if queue >= queue-speed [ set queue (queue - queue-speed) ]
-  shop-update
-  if funds <= 1  [ die ]
-  if funds >= 200 [
+;  if queue >= queue-speed [ set queue (queue - queue-speed) ]
+  set queue max (list 0 (queue - queue-speed)) ;decrease queue to 0 at last
+  if funds <= 1  [
+    set dead-shops dead-shops + 1
+    die
+  ]
+  if funds >= 2 * starting-funds [
     shop-duplicate
     set funds (funds - starting-funds)
   ]
+  shop-update
+
+  ; Decrease funds according to taxes
+  ;set funds funds - taxes
 end
 
 
@@ -431,10 +570,10 @@ end
 ;;  0 = *
 @#$#@#$#@
 GRAPHICS-WINDOW
-655
-160
-1268
-624
+185
+10
+798
+474
 -1
 -1
 5.0
@@ -458,20 +597,20 @@ ticks
 30.0
 
 CHOOSER
-455
-245
-641
-290
+0
+45
+140
+90
 map-name
 map-name
-"rte-de-narbonne"
+"rte-de-narbonne" "rue-saint-rome"
 0
 
 BUTTON
-455
-165
-528
-198
+0
+10
+73
+43
 NIL
 setup
 NIL
@@ -485,10 +624,10 @@ NIL
 1
 
 BUTTON
-530
-165
-593
-198
+75
+10
+138
+43
 NIL
 go
 T
@@ -502,10 +641,10 @@ NIL
 1
 
 MONITOR
-1270
-315
-1362
-360
+575
+420
+667
+465
 NIL
 count shops
 17
@@ -513,25 +652,25 @@ count shops
 11
 
 SLIDER
-455
-440
-627
-473
+0
+185
+180
+218
 population
 population
 0
 300
-200.0
+180.0
 2
 1
 NIL
 HORIZONTAL
 
 PLOT
-1270
+800
+10
+1015
 160
-1485
-310
 Shops Funds
 Funds
 Nb shops
@@ -546,10 +685,10 @@ PENS
 "default" 10.0 1 -955883 true "" "set-plot-y-range 0 40 histogram [funds] of shops"
 
 SLIDER
-455
-475
-627
-508
+0
+255
+180
+288
 base-money
 base-money
 1
@@ -561,30 +700,30 @@ NIL
 HORIZONTAL
 
 CHOOSER
-455
-295
-640
-340
+0
+90
+140
+135
 display-shops
 display-shops
 "All" "Relevant (?)" "Restaurants" "Retail stores" "Health"
 1
 
 CHOOSER
-455
-345
-640
-390
+0
+135
+140
+180
 display-roads
 display-roads
 "no" "plain" "density" "funds" "well0" "well1" "well2"
-4
+0
 
 PLOT
-1270
-365
-1485
-515
+800
+165
+1015
+315
 Needs
 NIL
 NIL
@@ -600,10 +739,10 @@ PENS
 "pen-1" 1.0 1 -7500403 true "" "histogram [market] of shops"
 
 BUTTON
-455
-200
-557
-233
+140
+10
+215
+43
 NIL
 add-noise
 NIL
@@ -617,87 +756,203 @@ NIL
 1
 
 SLIDER
-455
-510
-627
-543
+0
+365
+180
+398
 queue-speed
 queue-speed
 1
 10
-10.0
+1.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-455
-545
-627
-578
+0
+440
+180
+473
 queue-per-customer
 queue-per-customer
 0
 200
-0.0
+10.0
 10
 1
 NIL
 HORIZONTAL
 
 SLIDER
-455
-580
-627
-613
+0
+290
+180
+323
 patience
 patience
 0
 1000
-1000.0
+100.0
 100
 1
 NIL
 HORIZONTAL
 
 MONITOR
-1365
-315
-1485
-360
+670
+420
+790
+465
 NIL
 sum [funds] of shops
-17
+0
 1
 11
 
 SLIDER
-265
-440
-440
-473
+0
+400
+180
+433
 max-duplicate-distance
 max-duplicate-distance
 1
 30
-20.0
+5.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-265
-475
-440
-508
+0
+330
+180
+363
 starting-funds
 starting-funds
 10
 100
-40.0
+30.0
 10
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+220
+180
+253
+customer-vision
+customer-vision
+0
+2
+1.2
+0.1
+1
+NIL
+HORIZONTAL
+
+PLOT
+1020
+10
+1320
+160
+Shops
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"all-shops" 1.0 0 -16777216 true "" "plot count shops"
+"new-shops" 1.0 0 -10899396 true "" "plot new-shops"
+"dead-shops" 1.0 0 -2674135 true "" "plot dead-shops"
+
+SLIDER
+880
+340
+1052
+373
+taxes
+taxes
+0
+0.25
+0.03
+0.01
+1
+NIL
+HORIZONTAL
+
+BUTTON
+220
+10
+307
+43
+NIL
+add-well
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+880
+380
+1052
+413
+delay-max
+delay-max
+0
+100
+4.0
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+1020
+165
+1320
+315
+Average shop state
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"queue" 1.0 0 -16777216 true "" "plot mean [queue] of shops"
+"funds" 1.0 0 -7500403 true "" "plot mean [funds] of shops"
+
+SLIDER
+880
+420
+1052
+453
+one-shop-over-n
+one-shop-over-n
+1
+50
+1.0
+1
 1
 NIL
 HORIZONTAL
