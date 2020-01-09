@@ -44,6 +44,11 @@
 ;
 ; 9. try-to-buy : une version plus efficace (pour mon pauvre PC qui rame, qui rame...)
 ;
+; 10.Les puits sont pondérés : on apparaît et on va plus fréquemment vers les puits de
+;    fort poids
+;
+; 11.Label du shop 'onmouseover'
+;
 ;
 ; Notes :
 ;  - il y a deux trucs que je trouve bizarre :
@@ -83,6 +88,8 @@ globals [
 
   new-shops  ; Compteur
   dead-shops ; Compteur
+
+  ponderated-well-list ; list of well for random ponderated choice
 ]
 
 patches-own [
@@ -104,7 +111,6 @@ customers-own [
 
 shops-own [
   funds
-  staff
   market
   queue
   label-text
@@ -159,7 +165,6 @@ to init-wells
   ;set the-wells (patch-set patch 5 -5 patch -7 7 patch 14 7 patch -9 -3)
   ;ask the-wells [ set pcolor blue ]
 
-
   ;; Default attrs
   ask patches [
     set is-well false
@@ -183,7 +188,28 @@ to init-wells
   ;; Global agentset the-wells
   set the-wells patches with [is-well]
   set n-wells count the-wells
+
+  init-ponderated-well-list
 end
+
+;; Initialize the ponderated well list
+to init-ponderated-well-list
+  set ponderated-well-list []
+  let i 0
+  while [i < n-wells] [
+    let a-well one-of the-wells with [well-num = i]
+    if a-well = nobody [ print (word i " " n-wells) ]
+    let j 0
+    let w 1
+    if use-weighted-wells [ set w [well-weight] of a-well ]
+    while [j < w] [
+      set ponderated-well-list fput a-well ponderated-well-list
+      set j j + 1
+    ]
+    set i i + 1
+  ]
+end
+
 
 
 ;; Add a new well to the road patches
@@ -273,8 +299,10 @@ to init-customers
     set need [market] of one-of shops ; need: au hasard parmi les 'market' proposés par les boutiques
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
     set delay delay-max
-    move-to one-of the-wells
-    set destination one-of the-wells
+    ;move-to one-of the-wells
+    ;set destination one-of the-wells
+    move-to one-of ponderated-well-list
+    set destination one-of ponderated-well-list
     set closest-shop nobody
   ]
 end
@@ -355,8 +383,10 @@ end
 
 ;; Customer behavior when reaching its exit patch
 to leave-world ; turtle-procedure
-  move-to one-of the-wells
-  set destination one-of the-wells
+  ;move-to one-of the-wells
+  ;set destination one-of the-wells
+  move-to one-of ponderated-well-list
+  set destination one-of ponderated-well-list
   let reste (base-money - money)
   set money base-money
   ;set need random 17
@@ -364,9 +394,6 @@ to leave-world ; turtle-procedure
 
   ask one-of shops [ set funds (funds - reste) ]
 end
-
-
-
 
 
 
@@ -390,6 +417,7 @@ to init-shops
           set xcor item 0 location
           set ycor item 1 location
           set market gis:property-value vector-feature "MARKET"
+          set label-text gis:property-value vector-feature "GROUPEETAB"
         ]
       ]
       set i  i + 1
@@ -464,6 +492,11 @@ to shop-update ; turtle procedure
   set color color-of-market market
   set size (log funds 2) / 2
   ; if size >= 5 [ set size 5 ]
+  ifelse abs(xcor - mouse-xcor) < 1 and abs(ycor - mouse-ycor) < 1 [
+    set label label-text
+  ] [
+    set label ""
+  ]
 end
 
 ;; expend a rich shop
@@ -472,6 +505,7 @@ to shop-duplicate ; turtle procedure
     ;set market (random 17)
     ;move-to one-of (patches in-radius max-duplicate-distance)
     set market [market] of myself ;expand with the same kind of shop
+    set label-text [label-text] of myself
     move-to one-of (patches with [is-road] in-radius max-duplicate-distance) ;expand only on roads (reachable by customers)
     set funds starting-funds
     set new-shops new-shops + 1
@@ -956,6 +990,17 @@ one-shop-over-n
 1
 NIL
 HORIZONTAL
+
+SWITCH
+1105
+345
+1297
+378
+use-weighted-wells
+use-weighted-wells
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
