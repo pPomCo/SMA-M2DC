@@ -5,25 +5,44 @@
 
 * Introduction
 
-On a voulu faire ça, et ça fonctionne pas trop mal.
+Les commerces en ville se situent généralement autour des grands axes,
+dans une situation de forte concurrence.
 
-* Problématique
+La simulation que nous proposons se base sur l'hypothèse que cette répartition
+s'explique par le seul comportement de la clientèle. 
+Nous arrivons à reproduire ce mécanisme.
+
+La section 2 présente notre cas d'étude. 
+La section 3 résume les choix de modélisation détaillés dans la fiche /ODD/. 
+La section 4 expose nos résultats et constatations.
+La conclusion est en section 5.
+
+* Cas d'étude
 
 Nous nous intéressons à la localisation des commerces concurrentiels en ville.
 
 Nous avons observé in-situ que les commerces sont principalement situés sur les axes de passage,
 et que les commerces proches proposent souvent des services identiques.
 
-Nous souhaitons à la fois simuler ces comportements sur des données réelles, et dans le cas de données
-modifiées (ajout d'un arrêt de bus par exemple)
+Nous souhaitons simuler ces comportements sur des données réelles, et dans le cas de données
+modifiées (ajout d'un arrêt de bus par exemple).
+
+Nous travaillons d'abord sur la /route de Narbonne/ (Toulouse) et les rues environnantes (figure [[fig:t0]]),
+puis vérifions si nous obtenons des résultats similaires sur d'autres quartiers.
 
 * Choix de modélisation
 La fiche /ODD/ accompagnant ce rapport donne les détails de la modélisation.
 Nous reprenons ici les grandes lignes.
 
+
+#+CAPTION: État initial du système
+#+NAME: fig:t0
+#+ATTR_LATEX: :width 200px
+[[./images/t=0.png]]
+
 ** Le monde
 Les rues (/roads/) sont les seuls patches accessibles du monde. 
-Nous utilisons le cadastre pour les identifier.
+Nous utilisons les données du cadastre pour les identifier.
 
 Certains patches de rue sont des puits (/wells/), qui servent d'entrée et de
 sortie pour les clients. Ces puits sont placés manuellement sur la carte (avec QGis)
@@ -31,11 +50,11 @@ aux extrémités des rues, et possèdent un poids représentant leur fréquentat
 
 ** Les boutiques
 *** Représentation
-Les boutiques possèdent une position, un domaine d'activité (/market/), des fonds (/funds/),
+Les boutiques possèdent une position, un domaine d'activité (/market/) représenté par leur couleur, des fonds (/funds/) représentés par leur taille,
 et une file d'attente (/queue/).
 *** Initialisation
 Les boutiques sont générées d'après la base Sirene : leur position et leur domaine
-d'activité est réaliste. Toutes commencent avec la même somme d'argent et une file d'attente vide.
+d'activité est réaliste. Toutes commencent avec la même somme d'argent et une file d'attente vide (figure [[fig:t0]])
 *** Comportement
 Les boutiques gagnent 1 sou lorsqu'un client y consomme, et en perdent lorsqu'un
 client est généré. Cela nous permet de simuler une taxe qui est exactement égale
@@ -49,33 +68,50 @@ finance un nouveau commerce voisin de même type.
 ** Les clients
 *** Représentation
 Les clients possèdent de l'argent (/money/), 
-un besoin spécifique (/need/) correspondant à un domaine d'activité des boutiques,
-une destination (l'un des puits), ainsi qu'un compteur (/delay/) assurant que les consommation
-sont espacées au moins de l'écart minimal (/delay-max/).
-Tous sont influencés par les variables globales définissant leur champ de vision 
-(distance maximale pour accéder à une boutique)
-et leur patience (file d'attente acceptable).
+un besoin  (/need/) correspondant à un domaine d'activité des boutiques
+et une destination (l'un des puits).
 *** Initialisation
 Les clients commencent sur un puits, avec un besoin et une destination (choisis au hasard pondéré). 
 Initialement, ils possèdent tous la même quantité d'argent (/base-money/).
 *** Comportement
-Un client n'ayant pas consommé trop récemment consomme s'il passe à proximité d'une boutique
-adaptée (si l'attente n'est pas trop longue). Il donne 1 sou à la boutique.
+Un client consomme s'il passe à proximité d'une boutique
+adaptée, où l'attente est raisonnable. Il donne alors 1 sou à la boutique.
 
 Un client atteignant sa destination disparaît, et un autre client est alors généré.
 Cela assure une population constante.
 
 * Résultats de la simulation
 
-Les commerces s'agglomèrent par type.
+Après stabilisation du système (figure [[fig:stabilisation]]), nous observons la répartition
+géographique des commerces.
+Dans tous les cas suivants, les commerces s'agglomèrent par type 
+(comportement émergent issu des faillites et créations successives).
 
-La file d'attente (capacité maximale des commerces) entraîne les clients à repousser leurs achats, 
-les commerces situés loin des sources (mais sur les axes principaux) sont viables
 
-Les commerces situés hors des axes principaux font faillite, et aucun nouveau commerce ne s'y installe.
+#+CAPTION: Stabilisation du système : les commerces se créent à la même vitesse qu'ils font faillite (leur nombre est constant)
+#+NAME: fig:stabilisation
+#+ATTR_LATEX: :width 140px
+[[./images/shop_count.png]]
 
-L'ajout d'une nouvelle source de client provoque le développement des rues adjacentes (car les axes 
-principaux changent).
+Avec une seule consommation par client (/base-money/ = 1), et une vitesse
+d'écoulement de la file d'attente raisonnable (/queue-speed/ = 0.1), 
+les commerces se regroupent autour des puits (figure [[fig:bmoney1]]).
+
+#+CAPTION: Les clients consomme une seule fois
+#+NAME: fig:bmoney1
+#+ATTR_LATEX: :width 150px
+[[./images/t=12000_base-money=1_patience=10_queue-speed=0.5_maxdd=5.png]]
+
+
+Avec plusieurs consommations par clients (/base-money/ = 3) ou une
+vitesse d'écoulement de la file d'attente très faible (/queue-speed/ = 0.01),
+les clients sont poussés à consommer plus loin, et les commerces se 
+répartissent alors sur les axes principaux (figure [[fig:grands_axes]])
+
+#+CAPTION: Les clients consomment 3 fois (à gauche), ou l'écoulement des files d'attentes est lent (à droite)
+#+NAME: fig:grands_axes
+#+ATTR_LATEX: :width 300px
+[[./images/grands_axes.png]]
 
 * Conclusion
 
