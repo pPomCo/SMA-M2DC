@@ -222,6 +222,7 @@ to add-well
   set the-wells patches with [is-well]
   set n-wells count the-wells
   init-roads
+  init-ponderated-well-list
 end
 
 
@@ -325,7 +326,7 @@ to try-to-buy ;turtle procedure
         ;if random queue < patience [
         if queue < patience [
           set bought true
-          set queue (queue + queue-per-customer)
+          set queue (queue + 1)
           set funds (funds + 1)
           set tmp-money (tmp-money - 1)
           hatch-dollars 1 [
@@ -352,7 +353,7 @@ to try-to-buy2 ;turtle procedure
     if the-shop != nobody [
       if [queue] of the-shop < patience [
         ask the-shop [
-          set queue (queue + queue-per-customer)
+          set queue (queue + 1)
           set funds (funds + 1)
           hatch-dollars 1 [
             set shape "circle"
@@ -711,7 +712,7 @@ Nb shops
 0.0
 200.0
 0.0
-200.0
+20.0
 true
 false
 "" ""
@@ -758,7 +759,7 @@ PLOT
 165
 1015
 315
-Needs
+Markets and needs
 NIL
 NIL
 0.0
@@ -796,25 +797,10 @@ SLIDER
 398
 queue-speed
 queue-speed
-1
-10
-1.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-0
-440
-180
-473
-queue-per-customer
-queue-per-customer
-0
-200
-10.0
-10
+0.01
+0.5
+0.1
+0.01
 1
 NIL
 HORIZONTAL
@@ -827,9 +813,9 @@ SLIDER
 patience
 patience
 0
-1000
-100.0
 100
+10.0
+5
 1
 NIL
 HORIZONTAL
@@ -910,21 +896,6 @@ PENS
 "new-shops" 1.0 0 -10899396 true "" "plot new-shops"
 "dead-shops" 1.0 0 -2674135 true "" "plot dead-shops"
 
-SLIDER
-880
-340
-1052
-373
-taxes
-taxes
-0
-0.25
-0.03
-0.01
-1
-NIL
-HORIZONTAL
-
 BUTTON
 220
 10
@@ -973,7 +944,7 @@ true
 true
 "" ""
 PENS
-"queue" 1.0 0 -16777216 true "" "plot mean [queue] of shops"
+"queue (10x)" 1.0 0 -16777216 true "" "plot mean [queue] of shops * 10"
 "funds" 1.0 0 -7500403 true "" "plot mean [funds] of shops"
 
 SLIDER
