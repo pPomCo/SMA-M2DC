@@ -1,0 +1,82 @@
+#+TITLE: T.P. Simulation (S.M.A.)
+#+AUTHOR: Q. MARTY et P. POMERET-COQUOT
+#+DATE: Automne 2019
+#+OPTIONS: toc:nil
+
+* Introduction
+
+On a voulu faire ça, et ça fonctionne pas trop mal.
+
+* Problématique
+
+Nous nous intéressons à la localisation des commerces concurrentiels en ville.
+
+Nous avons observé in-situ que les commerces sont principalement situés sur les axes de passage,
+et que les commerces proches proposent souvent des services identiques.
+
+Nous souhaitons à la fois simuler ces comportements sur des données réelles, et dans le cas de données
+modifiées (ajout d'un arrêt de bus par exemple)
+
+* Choix de modélisation
+La fiche /ODD/ accompagnant ce rapport donne les détails de la modélisation.
+Nous reprenons ici les grandes lignes.
+
+** Le monde
+Les rues (/roads/) sont les seuls patches accessibles du monde. 
+Nous utilisons le cadastre pour les identifier.
+
+Certains patches de rue sont des puits (/wells/), qui servent d'entrée et de
+sortie pour les clients. Ces puits sont placés manuellement sur la carte (avec QGis)
+aux extrémités des rues, et possèdent un poids représentant leur fréquentation.
+
+** Les boutiques
+*** Représentation
+Les boutiques possèdent une position, un domaine d'activité (/market/), des fonds (/funds/),
+et une file d'attente (/queue/).
+*** Initialisation
+Les boutiques sont générées d'après la base Sirene : leur position et leur domaine
+d'activité est réaliste. Toutes commencent avec la même somme d'argent et une file d'attente vide.
+*** Comportement
+Les boutiques gagnent 1 sou lorsqu'un client y consomme, et en perdent lorsqu'un
+client est généré. Cela nous permet de simuler une taxe qui est exactement égale
+à l'argent gagné par les commerces, afin de conserver un niveau constant d'argent en circulation.
+
+A chaque client, la file d'attente grandit, elle réduit à chaque tick.
+
+De plus, si une boutique prospère (deux fois ses fonds de départ), alors elle
+finance un nouveau commerce voisin de même type.
+
+** Les clients
+*** Représentation
+Les clients possèdent de l'argent (/money/), 
+un besoin spécifique (/need/) correspondant à un domaine d'activité des boutiques,
+une destination (l'un des puits), ainsi qu'un compteur (/delay/) assurant que les consommation
+sont espacées au moins de l'écart minimal (/delay-max/).
+Tous sont influencés par les variables globales définissant leur champ de vision 
+(distance maximale pour accéder à une boutique)
+et leur patience (file d'attente acceptable).
+*** Initialisation
+Les clients commencent sur un puits, avec un besoin et une destination (choisis au hasard pondéré). 
+Initialement, ils possèdent tous la même quantité d'argent (/base-money/).
+*** Comportement
+Un client n'ayant pas consommé trop récemment consomme s'il passe à proximité d'une boutique
+adaptée (si l'attente n'est pas trop longue). Il donne 1 sou à la boutique.
+
+Un client atteignant sa destination disparaît, et un autre client est alors généré.
+Cela assure une population constante.
+
+* Résultats de la simulation
+
+Les commerces s'agglomèrent par type.
+
+La file d'attente (capacité maximale des commerces) entraîne les clients à repousser leurs achats, 
+les commerces situés loin des sources (mais sur les axes principaux) sont viables
+
+Les commerces situés hors des axes principaux font faillite, et aucun nouveau commerce ne s'y installe.
+
+L'ajout d'une nouvelle source de client provoque le développement des rues adjacentes (car les axes 
+principaux changent).
+
+* Conclusion
+
+Avec ce super modèle on peut bien s'amuser :-)
