@@ -2,8 +2,19 @@
 ; M2DC 2019/2020
 ; TP SMA - simulation
 ;
+; Simulation de la localisation géographique des commerces en ville
+;   - Forte concurrence : les commerces de même activité se regroupent
+;   - Forte dépendance aux consommateurs : les commerces se situent le long des grands axes
 ;
+; Explication du modèle : voir ODD.md
 ;
+; Interface:
+;  - Choisir la carte, le type de boutique affichée et le 'use-weighted-wells' avant de cliquer sur 'setup'
+;  - Pour ajouter une nouvelle source, placer 'add-well-on-click' sur 'on' et cliquer sur la carte, le bouton 'go' étant actif
+;  - Les paramètres par défaut produisent un comportment réaliste des boutiques
+;
+; Seul un jeu de données (route de Narbonne) est uploadé sur Moodle (limite de taille).
+;  -> Pour l'autre jeu de données (Rue Saint-Rome), voir https://github.com/pPomCo/SMA-M2DC/
 
 extensions [ gis ]
 
@@ -289,6 +300,7 @@ to try-to-buy ;turtle procedure
         set delay 0
       ]
     ]
+    ;if money = 0 [ leave-world ] ;; Increase simulation speed
   ]
 end
 
@@ -728,7 +740,7 @@ queue-speed
 queue-speed
 0.01
 0.5
-0.1
+0.05
 0.01
 1
 NIL
@@ -834,7 +846,7 @@ min-delay-before-buy
 min-delay-before-buy
 0
 100
-4.0
+10.0
 1
 1
 NIL
@@ -858,6 +870,9 @@ true
 PENS
 "queue (10x)" 1.0 0 -16777216 true "" "plot mean [queue] of shops * 10"
 "funds" 1.0 0 -7500403 true "" "plot mean [funds] of shops"
+"closest well" 1.0 0 -2674135 true "" "plot mean [min (list 100 min distance-to-wells)] of shops"
+"cust. density" 1.0 0 -6459832 true "" "plot mean [count customers in-radius 10] of shops"
+"competition" 1.0 0 -13840069 true "" "plot mean [count shops with [market = [market] of myself] in-radius 20] of shops"
 
 SLIDER
 0
@@ -892,7 +907,7 @@ SWITCH
 343
 add-well-on-click
 add-well-on-click
-1
+0
 1
 -1000
 
