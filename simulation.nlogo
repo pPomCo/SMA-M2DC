@@ -179,9 +179,9 @@ to init-wells
     let n-wells count wells
     ask p [
       sprout-wells 1 [
-        set shape "star"
-        set color blue - 1
-        set size 4
+        set shape "target"
+        set color red
+        set size 3
         set well-weight gis:property-value vector-feature "W"
         set well-num n-wells
       ]
@@ -220,9 +220,9 @@ to add-well
       let n-wells count wells
       ask min-one-of patches with [is-road?] [distance patch mouse-xcor mouse-ycor] [
         sprout-wells 1 [
-          set shape "star"
-          set color blue - 1
-          set size 4
+          set shape "target"
+          set color red
+          set size 3
           set well-num n-wells
           set well-weight new-well-weight
           print (word "Add well #" well-num " with weight " well-weight)
@@ -255,7 +255,7 @@ to init-customers
     set size 1.2
     set need [market] of one-of shops ; need: au hasard parmi les 'market' proposés par les boutiques
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
-    set delay delay-max
+    set delay min-delay-before-buy
     move-to one-of ponderated-well-list
     set destination one-of ponderated-well-list
   ]
@@ -271,7 +271,7 @@ end
 ; Buy in a shop if any available (close enough, corresponding market, queue < patience)
 to try-to-buy ;turtle procedure
   set delay (delay + 1)
-  if money > 0 and delay > delay-max [
+  if money > 0 and delay > min-delay-before-buy [
     ; The close-enough shop of the good type with the shortest waiting lane.
     let the-shop min-one-of shops in-radius customer-vision with [market = [need] of myself] [queue]
     if the-shop != nobody [
@@ -353,12 +353,12 @@ to init-shops
     set label-color black
     shop-update
   ]
-  add-noise
+  add-noise-to-shop-location
 end
 
 
 ;; Add noise to shop locations (so shops that have the same address are visible)
-to add-noise
+to add-noise-to-shop-location
   let noise-strength 1
   ask shops [
     set xcor xcor + noise-strength - random-float (2 * noise-strength)
@@ -562,9 +562,9 @@ ticks
 
 CHOOSER
 0
-45
-140
-90
+85
+185
+130
 map-name
 map-name
 "rte-de-narbonne" "rue-saint-rome"
@@ -573,7 +573,7 @@ map-name
 BUTTON
 0
 10
-73
+90
 43
 NIL
 setup
@@ -588,9 +588,9 @@ NIL
 1
 
 BUTTON
-75
+95
 10
-138
+185
 43
 NIL
 go
@@ -616,10 +616,10 @@ count shops
 11
 
 SLIDER
-0
-185
-180
-218
+800
+325
+980
+358
 population
 population
 0
@@ -649,10 +649,10 @@ PENS
 "default" 10.0 1 -955883 true "" "set-plot-y-range 0 40 histogram [funds] of shops"
 
 SLIDER
-0
-255
-180
-288
+800
+395
+980
+428
 base-money
 base-money
 1
@@ -665,9 +665,9 @@ HORIZONTAL
 
 CHOOSER
 0
-90
-140
-135
+130
+185
+175
 display-shops
 display-shops
 "All" "Relevant (?)" "Restaurants" "Retail stores" "Health"
@@ -675,9 +675,9 @@ display-shops
 
 CHOOSER
 0
-135
-140
-180
+175
+185
+220
 display-roads
 display-roads
 "no" "plain" "density" "funds" "well0" "well1" "well2"
@@ -703,12 +703,12 @@ PENS
 "pen-1" 1.0 1 -7500403 true "" "histogram [market] of shops"
 
 BUTTON
-140
-10
-215
-43
+0
+45
+185
+78
 NIL
-add-noise
+add-noise-to-shop-location
 NIL
 1
 T
@@ -720,10 +720,10 @@ NIL
 1
 
 SLIDER
-0
-365
-180
-398
+985
+360
+1165
+393
 queue-speed
 queue-speed
 0.01
@@ -735,10 +735,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-0
-290
-180
-323
+800
+430
+980
+463
 patience
 patience
 0
@@ -761,25 +761,25 @@ sum [funds] of shops
 11
 
 SLIDER
-0
-400
-180
-433
+985
+395
+1165
+428
 max-duplicate-distance
 max-duplicate-distance
 1
 30
-30.0
+5.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-0
-330
-180
-363
+985
+325
+1165
+358
 starting-funds
 starting-funds
 10
@@ -791,10 +791,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-0
-220
-180
-253
+800
+360
+980
+393
 customer-vision
 customer-vision
 0
@@ -826,12 +826,12 @@ PENS
 "dead-shops" 1.0 0 -2674135 true "" "plot dead-shops"
 
 SLIDER
-880
-380
-1052
-413
-delay-max
-delay-max
+985
+430
+1165
+463
+min-delay-before-buy
+min-delay-before-buy
 0
 100
 4.0
@@ -860,10 +860,10 @@ PENS
 "funds" 1.0 0 -7500403 true "" "plot mean [funds] of shops"
 
 SLIDER
-880
-420
-1052
-453
+0
+255
+185
+288
 one-shop-over-n
 one-shop-over-n
 1
@@ -875,10 +875,10 @@ NIL
 HORIZONTAL
 
 SWITCH
-1105
-345
-1297
-378
+0
+220
+185
+253
 use-weighted-wells
 use-weighted-wells
 0
@@ -886,21 +886,21 @@ use-weighted-wells
 -1000
 
 SWITCH
-810
-325
-982
-358
-add-well-on-click
-add-well-on-click
 0
+310
+185
+343
+add-well-on-click
+add-well-on-click
+1
 1
 -1000
 
 SLIDER
-990
-325
-1162
-358
+0
+345
+185
+378
 new-well-weight
 new-well-weight
 1
