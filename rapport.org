@@ -2,6 +2,7 @@
 #+AUTHOR: Q. MARTY et P. POMERET-COQUOT
 #+DATE: Automne 2019
 #+OPTIONS: toc:nil
+#+OPTIONS: tex:imagemagick
 
 * Introduction
 
@@ -28,28 +29,32 @@ Nous souhaitons simuler ces comportements sur des données réelles, et dans le 
 modifiées (ajout d'un arrêt de bus par exemple).
 
 Nous travaillons d'abord sur la /route de Narbonne/ (Toulouse) et les rues environnantes (figure [[fig:t0]]),
-puis vérifions si nous obtenons des résultats similaires sur d'autres quartiers.
+puis vérifions si nous obtenons des comportement similaires sur d'autres quartiers (données sur github).
 
 * Choix de modélisation
 La fiche /ODD/ accompagnant ce rapport donne les détails de la modélisation.
 Nous reprenons ici les grandes lignes.
 
 
-#+CAPTION: État initial du système
+#+CAPTION: État initial du système (route de Nnarbonne)
 #+NAME: fig:t0
-#+ATTR_LATEX: :width 200px
+#+ATTR_LATEX: :width 250px
 [[./images/t=0.png]]
 
 ** Le monde
 Les rues (/roads/) sont les seuls patches accessibles du monde. 
 Nous utilisons les données du cadastre pour les identifier.
 
+#+ATTR_LATEX: :float wrap :width 10px :placement {r}{0}
+[[./images/icon-well.png]]
 Certains patches de rue sont des puits (/wells/), qui servent d'entrée et de
 sortie pour les clients. Ces puits sont placés manuellement sur la carte (avec QGis)
 aux extrémités des rues, et possèdent un poids représentant leur fréquentation.
-
+On peut en ajouter dynamiquement en cliquant sur la carte.
 ** Les boutiques
 *** Représentation
+#+ATTR_LATEX: :float wrap :width 10px :placement {r}{0}
+[[./images/icon-shop.png]]
 Les boutiques possèdent une position, un domaine d'activité (/market/) représenté par leur couleur, des fonds (/funds/) représentés par leur taille,
 et une file d'attente (/queue/).
 *** Initialisation
@@ -67,8 +72,10 @@ finance un nouveau commerce voisin de même type.
 
 ** Les clients
 *** Représentation
+#+ATTR_LATEX: :float wrap :width 10px :placement {r}{0}
+[[./images/icon-customer.png]]
 Les clients possèdent de l'argent (/money/), 
-un besoin  (/need/) correspondant à un domaine d'activité des boutiques
+un besoin  (/need/) correspondant au /market/ d'une boutique
 et une destination (l'un des puits).
 *** Initialisation
 Les clients commencent sur un puits, avec un besoin et une destination (choisis au hasard pondéré). 
@@ -81,38 +88,93 @@ Un client atteignant sa destination disparaît, et un autre client est alors gé
 Cela assure une population constante.
 
 * Résultats de la simulation
+** Paramètres représentatifs
 
 Après stabilisation du système (figure [[fig:stabilisation]]), nous observons la répartition
-géographique des commerces.
+géographique des commerces via : la distance au puits le plus proche, la densité locale de client
+et le facteur d'agglomération concurrentielle (nombre de boutiques de même type à faible distance).
+
 Dans tous les cas suivants, les commerces s'agglomèrent par type 
 (comportement émergent issu des faillites et créations successives).
 
-
-#+CAPTION: Stabilisation du système : les commerces se créent à la même vitesse qu'ils font faillite (leur nombre est constant)
+#+CAPTION: Le nombre de commerces (à gauche), la densité de clients et le taux de concurrence (à droite, courbes marron et vertes) se stabilisent.
 #+NAME: fig:stabilisation
-#+ATTR_LATEX: :width 140px
-[[./images/shop_count.png]]
+#+ATTR_LATEX: :height 65px
+[[./images/shop_monitor.png]]
+
 
 Avec une seule consommation par client (/base-money/ = 1), et une vitesse
 d'écoulement de la file d'attente raisonnable (/queue-speed/ = 0.1), 
 les commerces se regroupent autour des puits (figure [[fig:bmoney1]]).
 
-#+CAPTION: Les clients consomme une seule fois
+#+CAPTION: Les clients ne consomment une seule fois
 #+NAME: fig:bmoney1
-#+ATTR_LATEX: :width 150px
+#+ATTR_LATEX: :height 100px
 [[./images/t=12000_base-money=1_patience=10_queue-speed=0.5_maxdd=5.png]]
 
 
-Avec plusieurs consommations par clients (/base-money/ = 3) ou une
-vitesse d'écoulement de la file d'attente très faible (/queue-speed/ = 0.01),
-les clients sont poussés à consommer plus loin, et les commerces se 
-répartissent alors sur les axes principaux (figure [[fig:grands_axes]])
+Avec plus d'argent par client (/base-money/ = 3) 
+ou des files d'attente moins rapides (/queue-speed/ = 0.01),
+les clients sont poussés à consommer plus loin : les commerces se 
+répartissent sur les axes principaux (figure [[fig:grands_axes]]).
 
-#+CAPTION: Les clients consomment 3 fois (à gauche), ou l'écoulement des files d'attentes est lent (à droite)
+#+CAPTION: Les clients consomment 3 fois (à gauche), l'écoulement des files d'attentes est lent (à droite)
 #+NAME: fig:grands_axes
-#+ATTR_LATEX: :width 300px
+#+ATTR_LATEX: :height 100px
 [[./images/grands_axes.png]]
+
+** Ajout de nouvelles sources de clients
+
+Nous pouvons ajouter de nouvelles sources (puits) de clientèle dynamiquement, par un simple clic sur la carte.
+Après un temps de stabilisation, nous retrouvons le même comportement que précédemment.
+
+Par exemple, reprenons le cas /base-money/ = 1, /queue-speed/ = 0.1 (les commerces s'agglomèrent
+autour des sources).
+1. Nous laissons le système se stabiliser comme précédemment
+2. Nous ajoutons une source dans la rue /Lefranc de Pompignan/ (tout à gauche de la carte).
+3. Nous laissons à nouveau le système se stabiliser (figure [[fig:stabilisation2]])
+
+
+#+CAPTION: Comportement du système après l'ajout d'une nouvelle source à t=3000 : le système est déstabilisé, mais se redresse
+#+NAME: fig:stabilisation2
+#+ATTR_LATEX: :height 65px
+[[./images/shop_monitor2.png]]
+
+Nous constatons que certains commerces se sont agglomérés à proximité de la nouvelle source
+(figure [[fig:bmoney1b]]).
+En effet les clients issus de cette nouvelle source ont consommé dans les commerces
+les plus proches, qui ont provoqué de nouvelles créations de commerces. Après plusieurs cycles
+de création, un groupe s'est finalement installé à proximité de la nouvelle source.
+
+#+CAPTION: Une source est ajoutée (à gauche), puis les commerces s'en rapprochent (à droite)
+#+NAME: fig:bmoney1b
+#+ATTR_LATEX: :height 100px
+[[./images/on_wells_new_well.png]]
+
+L'ajout de nouvelles sources/puits produit ainsi une migration d'une partie des commerces vers cette source.
+D'une manière similaire, avec les paramètres permettant de peupler les grands axes, l'ajout d'une nouvelle
+source définit de nouveaux grands axes qui se peuplent eux-aussi 
+(figure [[fig:new_well2]] : les axes principaux ont changé).
+
+#+CAPTION: Une source est ajoutée (à gauche), ce qui modifie les axes principaux. Les commerces s'adaptent (à droite)
+#+NAME: fig:new_well2
+#+ATTR_LATEX: :height 100px
+[[./images/grands_axes_new_well.png]]
 
 * Conclusion
 
-Avec ce super modèle on peut bien s'amuser :-)
+Le modèle proposé permet de simuler les comportements concurrentiels des commerces en ville. 
+Nous avons validé notre modèle empiriquement, et regrettons de n'avoir pas pu faire tourner BehaviorSearch
+sur aucune de nos machines personnelles pour confirmer nos résultats, et ajuster les paramètres 
+avec plus de précision.
+
+Néanmoins, nous parvenons à simuler l'évolution de ces commerces, et cela en permettant d'ajouter
+dynamiquement de nouvelles sources de clients. Ainsi, nous pouvons estimer l'impact de la création
+d'une station de bus, métro, etc. sur notre modèle.
+
+
+* Annexe
+
+Le code (et particulièrement les jeux de données) sont disponibles sur le dépôt /git/ hébergé par GitHub, 
+à l'adresse
+[[https://github.com/pPomCo/SMA-M2DC/]]
