@@ -1,112 +1,51 @@
-; Modifications
-;
-; 1. Les customers sont initialisés avec un need choisi au hasard parmi les markets des shops
-;    -> tous les needs ont au moins un shop correspondant
-;    -> les needs suivent la même distribution que les markets
-;    (modif dans init-customers et leave-world)
-;
-; 1b.Les nouveaux shops sont créés avec le même market que le créateur
-;    -> Aucun nouveau market n'est créé
-;    -> Plus sensé ? Si un restaurant fonctionne, il ouvre un nouveau resto, pas une laverie :-)
-;
-; 2. Ajout de bruit dans la position des shops (à l'initialisation)
-;    Même effet qu'un clic sur le bouton add-noise (qui devient inutile)
-;    -> Permet de distinguer les shops multiples à la même adresse
-;    -> Permet de ramener sur la route les shops trop loin
-;
-; 3. Ajout des sliders pour ne pas mettre des constantes arbitraires
-;    en dur dans le code :
-;    - customer-vision (à l'origine =0.8)
-;    - delay-max (à l'origine =0) <<- j'aurai tendance à l'appeler delay-min.
-;      Il est très bien à 2 * customer-vision : le customer ne revient pas dans la même boutique
-;    - one-shop-over-n <<- affiche un shop sur n uniquement (à l'initialisation)
-;
-; 4. Nouveaux shops (duplicate) : ajout uniquement sur les patches 'road' (comme avec add-noise)
-;    -> Les customers peuvent y accéder
-;
-; 5. Ajout d'une turtle 'dollar' qui apparaît seulement pendant un tick sur un shop,
-;    lorsqu'un customer consomme (c'est pour moi pour comprendre ce qu'il se passe). C'est un cercle jaune
-;
-; 6. Retrait du random sur la queue / patience.
-;    Peut-être est-il justifié, mais pas entre 0 et 100% de la patience, plutôt entre 75 et 100% par exemple
-;    PS : pourquoi avoir une queue-per-customer et une queue-speed ?
-;         on devrait pouvoir avoir queue-per-customer = 1 (un mec de plus dans la queue)
-;         et tout régler avec queue-speed et patience
-;
-; 7. Ajout de 'add-well'
-;    -> Permet de simuler l'ajout d'une station de bus, etc.
-;    -> Positionnement aléatoire (c'est nul !)
-;    -> Besoin de recalculer les distances des patches aux puits (c'est bof)
-;
-; 8. Trucs annexes :
-;    - Utilisation de starting-funds à l'initialisation des shops
-;    - Taille des shops en log(funds) -> on voit les petits, les gros sont raisonnables
-;
-; 9. try-to-buy : une version plus efficace (pour mon pauvre PC qui rame, qui rame...)
-;
-; 10.Les puits sont pondérés : on apparaît et on va plus fréquemment vers les puits de
-;    fort poids
-;
-; 11.Label du shop 'onmouseover'
+; Q. MARTY et P. POMERET-COQUOT
+; M2DC 2019/2020
+; TP SMA - simulation
 ;
 ;
-; Notes :
-;  - il y a deux trucs que je trouve bizarre :
-;    - Le coup de 'queue-per-customer' qui est redondant avec 'queue-speed' ou 'patience'.
-;      On peut en mettre un à 1 (p.ex. queue-per-customer)
-;    - Un customer qui apparaît fait perdre de l'argent à un shop aléatoire.
-;      J'ai essayé de mettre une taxe à la place (pour tous les shops, à chaque tick),
-;      puis je l'ai enlevée (pas su la paramétrer). Mais elle paraît plus réaliste :-)
-;  - Avec certains réglages on arrive à avoir les effets qu'on veut simuler :
-;    - Les shops se concentrent sur les entrées et voies principales
-;    - Les shops de même type se retrouvent côte-à-côte (forte concurrence)
-;    Pour cela j'utilise (au pif) :
-;    - Patience = 100, queue-speed = 1, queue-per-customer = 10
-;      i.e. si on fixe queue-per-customer à 1, on a patience = 10 et queue-speed = 0.1
-;      pour le même résultat
-;    - base-money = 3
-;    - population = 180
-;    - max-duplicate-distance = 5
-;    Après quelques milliers de ticks pour faire disparaître les shops mal placés,
-;    on observe le regroupement des shops autour des shops bien situés
-
+;
 
 extensions [ gis ]
 
 breed [customers customer]
 breed [shops shop]
 breed [dollars dollar]
+breed [wells well]
 
 globals [
+  ; GIS datasets
   blocks-dataset
   roads-dataset
   shops-dataset
   wells-dataset
 
-  the-wells
-  n-wells
+  ; Counters
+  new-shops
+  dead-shops
 
-  new-shops  ; Compteur
-  dead-shops ; Compteur
+  ; list of well for random ponderated choice
+  ponderated-well-list
 
-  ponderated-well-list ; list of well for random ponderated choice
+  ; Mouse tracking
+  mouse-was-down?
 ]
 
 patches-own [
-  is-road
-  is-well
-  well-weight
-
-  well-num
+  is-road?
   distance-to-wells
 ]
+
+wells-own [
+  well-weight
+  well-num
+]
+
 
 customers-own [
   need
   destination
   money
   delay
-  closest-shop
 ]
 
 shops-own [
@@ -127,24 +66,31 @@ to setup
 
   load-datasets
 
-  ;set delay-max 0; 3000 ;; délai d'achat, j'ai pas trouvé mieux
-  set new-shops 0
-  set dead-shops 0
   init-patches
   init-gis
   init-shops
   init-customers
 
+  ; Init globals
+  set new-shops 0
+  set dead-shops 0
+  set mouse-was-down? false
+
   reset-ticks
 end
+
 
 to go
   ask dollars [die]
   ask customers [ customer-live ]
   ask shops [ shop-live ]
   ask patches [ patch-update ]
+  if add-well-on-click [ add-well ]
   tick
 end
+
+
+
 
 
 ;; =================================
@@ -160,45 +106,100 @@ to init-patches
 end
 
 
-;; Initialize well-related patch attibutes
-to init-wells
-  ;set the-wells (patch-set patch 5 -5 patch -7 7 patch 14 7 patch -9 -3)
-  ;ask the-wells [ set pcolor blue ]
+;; Initialize road-related patch attributes
+to init-roads
 
   ;; Default attrs
+  ask patches [set is-road? false]
+
+  ;; Road patches from dataset
+  ask patches gis:intersecting roads-dataset [set is-road? true]
+
+  ;; Compute distance to wells
+  print "Compute distance to wells..."
+
+  ; Init with 'infinity'
   ask patches [
-    set is-well false
-    set well-weight 0
-    set well-num -1
+    set distance-to-wells (map [ _ -> 100000 ] (range count wells))
   ]
 
-  ;; Attrs from dataset
-  set n-wells 0
+  ; Set well-patches distance to 1, and propagate
+  foreach range count wells [i ->
+    ask wells with [well-num = i] [
+      set distance-to-wells (replace-item i distance-to-wells 1)
+      ask neighbors [ propagate-distance-to-wells i ]
+    ]
+  ]
+end
+
+
+; Distance-to-well propagation procedure: distance = min distance of neighbors + 1
+to propagate-distance-to-wells [i] ;patch procedure
+  let ngs neighbors with [is-road?]
+  if any? ngs [
+    let w item i distance-to-wells
+    let w2 (min [item i distance-to-wells] of neighbors) + 2
+    if w2 < w [
+      set distance-to-wells (replace-item i distance-to-wells w2)
+      ask neighbors with [is-road?] [propagate-distance-to-wells i]
+    ]
+  ]
+end
+
+
+;; Update patch style wrt its attributes
+to patch-update ; patch-procedure
+  set pcolor white
+  set plabel-color black
+  if is-road? [
+    if display-roads = "plain"   [ set pcolor white - 1 ]
+    if display-roads = "density" [ set pcolor white - ((count customers in-radius 5) / 5)]
+    if display-roads = "funds"   [ set pcolor white - ((sum [funds] of shops in-radius 5) / 500) ]
+    if display-roads = "well0" [ set pcolor white - ((item 0 distance-to-wells) / 15)  ]
+    if display-roads = "well1" [ set pcolor white - ((item 1 distance-to-wells) / 15)  ]
+    if display-roads = "well2" [ set pcolor white - ((item 2 distance-to-wells) / 15)  ]
+  ]
+end
+
+
+
+
+
+;; =================================
+;; Functions relative to WELLS
+;; =================================
+
+
+;; Initialize wells from the dataset
+to init-wells
+  ; Create the wells
   foreach gis:feature-list-of wells-dataset [ vector-feature ->
     let location gis:location-of (first (first (gis:vertex-lists-of vector-feature)))
     let p patch item 0 location item 1 location
+    let n-wells count wells
     ask p [
-      set well-weight gis:property-value vector-feature "W"
-      set well-num n-wells
-      set is-well true
+      sprout-wells 1 [
+        set shape "star"
+        set color blue - 1
+        set size 4
+        set well-weight gis:property-value vector-feature "W"
+        set well-num n-wells
+      ]
     ]
-    set n-wells (n-wells + 1)
   ]
-
-  ;; Global agentset the-wells
-  set the-wells patches with [is-well]
-  set n-wells count the-wells
-
+  ; Then build the list from weighted-random well choice
   init-ponderated-well-list
 end
 
+
 ;; Initialize the ponderated well list
+; ex: for three wells a, b, c with weights 2 1 3, we build the list [a,a,b,c,c,c]
 to init-ponderated-well-list
   set ponderated-well-list []
   let i 0
-  while [i < n-wells] [
-    let a-well one-of the-wells with [well-num = i]
-    if a-well = nobody [ print (word i " " n-wells) ]
+  while [i < count wells] [
+    let a-well one-of wells with [well-num = i]
+    if a-well = nobody [ print (word i " " count wells) ]
     let j 0
     let w 1
     if use-weighted-wells [ set w [well-weight] of a-well ]
@@ -211,76 +212,31 @@ to init-ponderated-well-list
 end
 
 
-
-;; Add a new well to the road patches
+; Track mouse-click at each tick and add a well to the closest road patch if clicked
 to add-well
-  ask one-of patches with [is-road and not is-well] [
-    set is-well true
-    set well-weight random 5
-    set well-num n-wells
-  ]
-  set the-wells patches with [is-well]
-  set n-wells count the-wells
-  init-roads
-  init-ponderated-well-list
-end
-
-
-
-;; Initialize road-related patch attributes
-to init-roads
-
-  ;; Default attrs
-  ask patches [set is-road false]
-
-  ;; Road patches from dataset
-  ask patches gis:intersecting roads-dataset [set is-road true]
-
-  ;; Compute distance to wells
-  print "Compute distance to wells..."
-  ask patches [
-    set distance-to-wells (map [ _ -> 100000 ] (range n-wells))
-  ]
-  foreach range n-wells [i ->
-    ask patches with [well-num = i] [
-      set distance-to-wells (replace-item i distance-to-wells 1)
-      ask neighbors [ propagate-distance-to-wells i ]
+  if not mouse-was-down? [
+    if mouse-down? [
+      set mouse-was-down? true
+      let n-wells count wells
+      ask min-one-of patches with [is-road?] [distance patch mouse-xcor mouse-ycor] [
+        sprout-wells 1 [
+          set shape "star"
+          set color blue - 1
+          set size 4
+          set well-num n-wells
+          set well-weight new-well-weight
+          print (word "Add well #" well-num " with weight " well-weight)
+        ]
+      ]
+      ; Re-init roads and well-list
+      init-roads
+      init-ponderated-well-list
     ]
   ]
-end
-
-to propagate-distance-to-wells [i] ;patch procedure
-  let ngs neighbors with [is-road]
-  if any? ngs [
-    let w item i distance-to-wells
-    let w2 (min [item i distance-to-wells] of neighbors) + 2
-    if w2 < w [
-      set distance-to-wells (replace-item i distance-to-wells w2)
-      ask neighbors with [is-road] [propagate-distance-to-wells i]
-    ]
+  if not mouse-down? [
+    set mouse-was-down? false
   ]
 end
-
-
-
-;; Update patch style wrt its attributes
-to patch-update ; patch-procedure
-  let draw-wells true
-  let draw-roads true
-  set pcolor white
-  set plabel-color black
-  if is-road [
-    if display-roads = "plain"   [ set pcolor white - 1 ]
-    if display-roads = "density" [ set pcolor white - ((count customers in-radius 5) / 5)]
-    if display-roads = "funds"   [ set pcolor white - ((sum [funds] of shops in-radius 5) / 500) ]
-    if display-roads = "well0" [ set pcolor white - ((item 0 distance-to-wells) / 15)  ]
-    if display-roads = "well1" [ set pcolor white - ((item 1 distance-to-wells) / 15)  ]
-    if display-roads = "well2" [ set pcolor white - ((item 2 distance-to-wells) / 15)  ]
-  ]
-  if draw-wells and is-well [ set pcolor blue ]
-end
-
-
 
 
 
@@ -291,61 +247,29 @@ end
 ;; =================================
 
 
+; Initialize customers
 to init-customers
   create-customers population [
     set shape "person"
     set color black
     set size 1.2
-    ;set need random 17
     set need [market] of one-of shops ; need: au hasard parmi les 'market' proposés par les boutiques
     set money base-money  ;; il peut acheter qu'une seule fois avec base-money = 1
     set delay delay-max
-    ;move-to one-of the-wells
-    ;set destination one-of the-wells
     move-to one-of ponderated-well-list
     set destination one-of ponderated-well-list
-    set closest-shop nobody
   ]
 end
+
 
 to customer-live  ;turtle procedure
   move-to-destination
-  try-to-buy2
+  try-to-buy
 end
 
-; Note: version "optimisée" en dessous (nommée try-to-buy2)
+
+; Buy in a shop if any available (close enough, corresponding market, queue < patience)
 to try-to-buy ;turtle procedure
-  set delay (delay + 1)
-  if money > 0 and delay > delay-max [
-    let tmp-need need
-    let tmp-money money
-    let bought false
-    let the-shop one-of shops in-radius customer-vision with [market = tmp-need] ;small optimization
-    if the-shop != nobody [
-      ask the-shop [
-        ;if random queue < patience [
-        if queue < patience [
-          set bought true
-          set queue (queue + 1)
-          set funds (funds + 1)
-          set tmp-money (tmp-money - 1)
-          hatch-dollars 1 [
-            set shape "circle"
-            set size 2
-            set color yellow
-          ]
-        ]
-      ]
-      if bought [
-      set money tmp-money
-      set delay 0
-      ]
-    ]
-  ]
-end
-
-; Same as before, but faster
-to try-to-buy2 ;turtle procedure
   set delay (delay + 1)
   if money > 0 and delay > delay-max [
     ; The close-enough shop of the good type with the shortest waiting lane.
@@ -368,32 +292,29 @@ to try-to-buy2 ;turtle procedure
   ]
 end
 
-;; Move to destination, trying to keep on roads
+
+;; Move to the patch that is the closest to 'my' destination
 to move-to-destination ; turtle procedure
   let my-well-num [well-num] of destination
-  face min-one-of neighbors with [is-road] [(item my-well-num distance-to-wells) + random-float 1]
+  face min-one-of neighbors with [is-road?] [(item my-well-num distance-to-wells) + random-float 1]
   fd random-float 1
   if distance destination < 1 [ leave-world ]
 end
 
-;to move-to-destination ; turtle procedure
-;  face destination
-;  fd random-float 1
-;  if distance destination < 1 [ leave-world ]
-;end
 
 ;; Customer behavior when reaching its exit patch
 to leave-world ; turtle-procedure
-  ;move-to one-of the-wells
-  ;set destination one-of the-wells
+
+  ; Re-init source, destination and need at random
   move-to one-of ponderated-well-list
   set destination one-of ponderated-well-list
-  let reste (base-money - money)
-  set money base-money
-  ;set need random 17
   set need [market] of one-of shops ; need: au hasard parmi les 'market' proposés par les boutiques
 
-  ask one-of shops [ set funds (funds - reste) ]
+  ; Refunds the customer and substract the money to one of the shops
+  ; (this is for total amount of money to be constant)
+  let missing-amount (base-money - money)
+  set money base-money
+  ask one-of shops [ set funds (funds - missing-amount) ]
 end
 
 
@@ -436,7 +357,7 @@ to init-shops
 end
 
 
-;; Noise shop locations
+;; Add noise to shop locations (so shops that have the same address are visible)
 to add-noise
   let noise-strength 1
   ask shops [
@@ -446,10 +367,12 @@ to add-noise
   ]
 end
 
-;; Move misplaced shop on roads
+
+;; Move misplaced shop on the closest road patch
 to reach-a-road ;turtle procedure
-  if not is-road [move-to min-one-of patches with [is-road] [distance myself]]
+  if not is-road? [move-to min-one-of patches with [is-road?] [distance myself]]
 end
+
 
 ;; Displayness of a shop according to the 'display-shops' value
 to-report is-displayed [vector-feature]
@@ -459,7 +382,7 @@ to-report is-displayed [vector-feature]
     report true
   ]
 
-  ;; Restaurants: market=12
+  ;; Restaurants, retail stores and heath
   if display-shops = "Relevant (?)" [
     let m gis:property-value vector-feature "market"
     report (m = 12) or (m = 9) or (m = 16)
@@ -471,13 +394,13 @@ to-report is-displayed [vector-feature]
     report (m = 12)
   ]
 
-  ;; Restaurants: market=12
+  ;; Retail stores: market=12
   if display-shops = "Retail stores" [
     let m gis:property-value vector-feature "market"
     report (m = 9)
   ]
 
-  ;; Restaurants: market=12
+  ;; Health: market=12
   if display-shops = "Health" [
     let m gis:property-value vector-feature "market"
     report (m = 16)
@@ -489,10 +412,12 @@ end
 
 
 ;; Update shop style wrt its values
+;; Color = shop type, size = shop funds
 to shop-update ; turtle procedure
   set color color-of-market market
   set size (log funds 2) / 2
-  ; if size >= 5 [ set size 5 ]
+
+  ; Show label on mouse over
   ifelse abs(xcor - mouse-xcor) < 1 and abs(ycor - mouse-ycor) < 1 [
     set label label-text
   ] [
@@ -500,41 +425,44 @@ to shop-update ; turtle procedure
   ]
 end
 
-;; expend a rich shop
+
+;; Expand a rich shop : it hatches a new similar shop and provide its starting funds
 to shop-duplicate ; turtle procedure
   hatch-shops 1 [
-    ;set market (random 17)
-    ;move-to one-of (patches in-radius max-duplicate-distance)
     set market [market] of myself ;expand with the same kind of shop
     set label-text [label-text] of myself
-    move-to one-of (patches with [is-road] in-radius max-duplicate-distance) ;expand only on roads (reachable by customers)
+    move-to one-of (patches with [is-road? and distance myself > max-duplicate-distance / 2] in-radius max-duplicate-distance) ;expand only on roads (reachable by customers)
     set funds starting-funds
     set new-shops new-shops + 1
   ]
 end
 
+
 to shop-live ; turtle procedure
-;  if queue >= queue-speed [ set queue (queue - queue-speed) ]
-  set queue max (list 0 (queue - queue-speed)) ;decrease queue to 0 at last
+  ; Decrease queue length
+  set queue max (list 0 (queue - queue-speed))
+
+  ; Die if no funds
   if funds <= 1  [
     set dead-shops dead-shops + 1
     die
   ]
+
+  ; Hatch a new shop if many funds
   if funds >= 2 * starting-funds [
     shop-duplicate
     set funds (funds - starting-funds)
   ]
   shop-update
-
-  ; Decrease funds according to taxes
-  ;set funds funds - taxes
 end
+
+
+
 
 
 ;; =================================
 ;; Functions relative to GIS
 ;; =================================
-
 
 
 to load-datasets
@@ -576,13 +504,14 @@ to init-gis
   ; Draw shape boundaries
   gis:set-drawing-color black
   gis:draw blocks-dataset 0
-
 end
+
 
 ;; Color of a market
 to-report color-of-market [market_num]
   report (10 * market) + 7
 end
+
 
 ;; Market codes:
 ;;  1 = "Activites de services administratifs et de soutien"
@@ -840,7 +769,7 @@ max-duplicate-distance
 max-duplicate-distance
 1
 30
-5.0
+30.0
 1
 1
 NIL
@@ -895,23 +824,6 @@ PENS
 "all-shops" 1.0 0 -16777216 true "" "plot count shops"
 "new-shops" 1.0 0 -10899396 true "" "plot new-shops"
 "dead-shops" 1.0 0 -2674135 true "" "plot dead-shops"
-
-BUTTON
-220
-10
-307
-43
-NIL
-add-well
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
 
 SLIDER
 880
@@ -972,6 +884,32 @@ use-weighted-wells
 0
 1
 -1000
+
+SWITCH
+810
+325
+982
+358
+add-well-on-click
+add-well-on-click
+0
+1
+-1000
+
+SLIDER
+990
+325
+1162
+358
+new-well-weight
+new-well-weight
+1
+10
+5.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
